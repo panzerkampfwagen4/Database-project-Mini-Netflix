@@ -1,6 +1,6 @@
 module mininetflix-api
 
-go 1.26.5
+go 1.22
 
 require (
 	filippo.io/edwards25519 v1.2.0 // indirect

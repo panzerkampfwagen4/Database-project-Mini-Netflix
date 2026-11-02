@@ -3,16 +3,21 @@ package main
 import (
 	"context"
 	"database/sql"
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 )
+
+//go:embed static/index.html
+var indexHTML []byte
 
 var db *sql.DB
 
@@ -71,6 +76,10 @@ type StartSessionRequest struct {
 	DeviceFingerprint string `json:"device_fingerprint"`
 }
 
+type StopSessionRequest struct {
+	SessionID string `json:"session_id"`
+}
+
 type UpdatePlaybackRequest struct {
 	ProfileID           int    `json:"profile_id"`
 	MediaUnitID         string `json:"media_unit_id"`
@@ -78,8 +87,15 @@ type UpdatePlaybackRequest struct {
 }
 
 // ============================================================================
-// Helper Utilities
+// Helper Utilities & Middleware
 // ============================================================================
+
+func getEnv(key, fallback string) string {
+	if val, ok := os.LookupEnv(key); ok && val != "" {
+		return val
+	}
+	return fallback
+}
 
 func writeJSON(w http.ResponseWriter, status int, payload APIResponse) {
 	w.Header().Set("Content-Type", "application/json")
@@ -91,9 +107,46 @@ func writeError(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, APIResponse{Success: false, Message: msg})
 }
 
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 // ============================================================================
 // HTTP Handlers
 // ============================================================================
+
+// UI Handler: Serves embedded Single Page Application
+func uiHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = w.Write(indexHTML)
+}
+
+// Healthcheck & Ping Handler (Keeps server active on free cloud hosts)
+func healthHandler(w http.ResponseWriter, r *http.Request) {
+	dbStatus := "connected"
+	if err := db.Ping(); err != nil {
+		dbStatus = fmt.Sprintf("unreachable: %v", err)
+	}
+
+	writeJSON(w, http.StatusOK, APIResponse{
+		Success: true,
+		Message: "Mini-Netflix Service is healthy",
+		Data: map[string]any{
+			"status":    "healthy",
+			"database":  dbStatus,
+			"timestamp": time.Now().UTC().Format(time.RFC3339),
+		},
+	})
+}
 
 // 1. GET /api/catalog: Filtered catalog browsing (Enforces BR-01 & BR-04)
 func catalogHandler(w http.ResponseWriter, r *http.Request) {
@@ -155,7 +208,7 @@ func catalogHandler(w http.ResponseWriter, r *http.Request) {
 	`
 	args := []any{currentTierID}
 
-	// BR-04: Kids Profile exclusion
+	// BR-04: Kids Profile exclusion (Strictly forbids R and NC-17)
 	if isKids {
 		query += " AND ct.maturity_rating NOT IN ('R', 'NC-17') "
 	}
@@ -172,7 +225,7 @@ func catalogHandler(w http.ResponseWriter, r *http.Request) {
 		args = append(args, "%"+search+"%")
 	}
 
-	query += " ORDER BY ct.title_name ASC LIMIT 50;"
+	query += " ORDER BY ct.title_name ASC LIMIT 100;"
 
 	rows, err := db.Query(query, args...)
 	if err != nil {
@@ -296,47 +349,95 @@ func createMovieHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// 3. POST /api/profiles: Create Profile (Enforces BR-05: 1 <= Count <= 5)
+// 3. GET & POST /api/profiles: Manage Profiles & Enforce BR-05 (1 <= Count <= 5)
 func profilesHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
+	switch r.Method {
+	case http.MethodGet:
+		rows, err := db.Query(`
+			SELECT 
+				p.profile_id, 
+				p.account_id, 
+				p.profile_name, 
+				p.is_kids_profile,
+				a.email,
+				a.current_tier_id,
+				st.tier_name,
+				st.max_concurrent_streams
+			FROM profile p
+			JOIN account a ON p.account_id = a.account_id
+			JOIN subscription_tier st ON a.current_tier_id = st.tier_id
+			ORDER BY p.account_id, p.profile_id;
+		`)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		defer rows.Close()
+
+		type ProfileDTO struct {
+			ProfileID     int    `json:"profile_id"`
+			AccountID     int    `json:"account_id"`
+			ProfileName   string `json:"profile_name"`
+			IsKidsProfile bool   `json:"is_kids_profile"`
+			Email         string `json:"email"`
+			TierID        int    `json:"tier_id"`
+			TierName      string `json:"tier_name"`
+			MaxStreams    int    `json:"max_streams"`
+		}
+
+		profiles := make([]ProfileDTO, 0)
+		for rows.Next() {
+			var p ProfileDTO
+			if err := rows.Scan(
+				&p.ProfileID, &p.AccountID, &p.ProfileName, &p.IsKidsProfile,
+				&p.Email, &p.TierID, &p.TierName, &p.MaxStreams,
+			); err != nil {
+				writeError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+			profiles = append(profiles, p)
+		}
+		writeJSON(w, http.StatusOK, APIResponse{Success: true, Count: len(profiles), Data: profiles})
+
+	case http.MethodPost:
+		var req CreateProfileRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeError(w, http.StatusBadRequest, "Invalid JSON payload")
+			return
+		}
+
+		// Check Profile threshold (BR-05)
+		var currentCount int
+		err := db.QueryRow("SELECT COUNT(*) FROM profile WHERE account_id = ?", req.AccountID).Scan(&currentCount)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Failed to verify profile count")
+			return
+		}
+
+		if currentCount >= 5 {
+			writeError(w, http.StatusConflict, "Profile threshold reached: Accounts cannot have more than 5 profiles (BR-05)")
+			return
+		}
+
+		res, err := db.Exec(`
+			INSERT INTO profile (account_id, profile_name, is_kids_profile)
+			VALUES (?, ?, ?)
+		`, req.AccountID, req.ProfileName, req.IsKidsProfile)
+		if err != nil {
+			writeError(w, http.StatusConflict, fmt.Sprintf("Failed to create profile: %v", err))
+			return
+		}
+
+		profileID, _ := res.LastInsertId()
+		writeJSON(w, http.StatusCreated, APIResponse{
+			Success: true,
+			Message: "Profile created successfully",
+			Data:    map[string]any{"profile_id": profileID, "profile_name": req.ProfileName},
+		})
+
+	default:
 		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
-		return
 	}
-
-	var req CreateProfileRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "Invalid JSON payload")
-		return
-	}
-
-	// Check Profile threshold (BR-05)
-	var currentCount int
-	err := db.QueryRow("SELECT COUNT(*) FROM profile WHERE account_id = ?", req.AccountID).Scan(&currentCount)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "Failed to verify profile count")
-		return
-	}
-
-	if currentCount >= 5 {
-		writeError(w, http.StatusConflict, "Profile threshold reached: Accounts cannot have more than 5 profiles (BR-05)")
-		return
-	}
-
-	res, err := db.Exec(`
-		INSERT INTO profile (account_id, profile_name, is_kids_profile)
-		VALUES (?, ?, ?)
-	`, req.AccountID, req.ProfileName, req.IsKidsProfile)
-	if err != nil {
-		writeError(w, http.StatusConflict, fmt.Sprintf("Failed to create profile: %v", err))
-		return
-	}
-
-	profileID, _ := res.LastInsertId()
-	writeJSON(w, http.StatusCreated, APIResponse{
-		Success: true,
-		Message: "Profile created successfully",
-		Data:    map[string]any{"profile_id": profileID, "profile_name": req.ProfileName},
-	})
 }
 
 // 4. POST & GET /api/watchlist: M:N Associative Entity Management
@@ -438,7 +539,7 @@ func ratingsHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, APIResponse{Success: true, Message: "Rating recorded successfully"})
 }
 
-// 6. POST /api/sessions/start: Starts active stream (Enforces BR-02 Concurrency Limit)
+// 6. POST & GET /api/sessions: Manage Active Sessions (Enforces BR-02 Concurrency Limit)
 func startSessionHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
@@ -495,7 +596,6 @@ func startSessionHandler(w http.ResponseWriter, r *http.Request) {
 		clientIP = clientIP[:colonIdx]
 	}
 
-	// Note: Schema column name is prof_id
 	insertQuery := `
 		INSERT INTO active_session (session_id, account_id, prof_id, ip_address, device_fingerprint, session_status)
 		VALUES (?, ?, ?, ?, ?, 'ACTIVE');
@@ -511,6 +611,56 @@ func startSessionHandler(w http.ResponseWriter, r *http.Request) {
 		Message: "Streaming session active",
 		Data:    map[string]string{"session_id": sessionID},
 	})
+}
+
+// GET /api/sessions: List active sessions
+func listSessionsHandler(w http.ResponseWriter, r *http.Request) {
+	accountIDStr := r.URL.Query().Get("account_id")
+	query := `
+		SELECT s.session_id, s.account_id, s.prof_id, p.profile_name, s.ip_address, s.device_fingerprint, s.started_at, s.session_status
+		FROM active_session s
+		JOIN profile p ON s.prof_id = p.profile_id
+		WHERE s.session_status = 'ACTIVE'
+	`
+	args := []any{}
+	if accountIDStr != "" {
+		query += " AND s.account_id = ? "
+		args = append(args, accountIDStr)
+	}
+	query += " ORDER BY s.started_at DESC;"
+
+	rows, err := db.Query(query, args...)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	defer rows.Close()
+
+	type SessionDTO struct {
+		SessionID         string    `json:"session_id"`
+		AccountID         int       `json:"account_id"`
+		ProfileID         int       `json:"profile_id"`
+		ProfileName       string    `json:"profile_name"`
+		IPAddress         string    `json:"ip_address"`
+		DeviceFingerprint *string   `json:"device_fingerprint,omitempty"`
+		StartedAt         time.Time `json:"started_at"`
+		SessionStatus     string    `json:"session_status"`
+	}
+
+	sessions := make([]SessionDTO, 0)
+	for rows.Next() {
+		var s SessionDTO
+		var df sql.NullString
+		if err := rows.Scan(&s.SessionID, &s.AccountID, &s.ProfileID, &s.ProfileName, &s.IPAddress, &df, &s.StartedAt, &s.SessionStatus); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if df.Valid {
+			s.DeviceFingerprint = &df.String
+		}
+		sessions = append(sessions, s)
+	}
+	writeJSON(w, http.StatusOK, APIResponse{Success: true, Count: len(sessions), Data: sessions})
 }
 
 // 7. POST /api/history/progress: Log Playback Checkpoint (Composite Key History)
@@ -557,15 +707,27 @@ func historyProgressHandler(w http.ResponseWriter, r *http.Request) {
 // Server Initialization
 // ============================================================================
 
+func buildDSN() string {
+	if dsn := os.Getenv("DB_DSN"); dsn != "" {
+		return dsn
+	}
+	user := getEnv("DB_USER", "root")
+	pass := getEnv("DB_PASSWORD", "root")
+	host := getEnv("DB_HOST", "127.0.0.1")
+	port := getEnv("DB_PORT", "3306")
+	name := getEnv("DB_NAME", "mininetflix")
+
+	return fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true&charset=utf8mb4&tls=preferred", user, pass, host, port, name)
+}
+
 func main() {
-	// Configure MySQL credentials (replace with your MySQL user/pass)
-	// dsn := "root:P@nzerkampf4@tcp(127.0.0.1:3306)/mininetflix?parseTime=true"
-	dsn := "root:your_mysql_password@tcp(127.0.0.1:3306)/mininetflix?parseTime=true"
+	dsn := buildDSN()
+	log.Printf("Connecting to MySQL database...")
 
 	var err error
 	db, err = sql.Open("mysql", dsn)
 	if err != nil {
-		log.Fatalf("DSN parsing failed: %v", err)
+		log.Fatalf("DSN configuration error: %v", err)
 	}
 	defer db.Close()
 
@@ -575,29 +737,44 @@ func main() {
 	db.SetConnMaxLifetime(5 * time.Minute)
 
 	if err := db.Ping(); err != nil {
-		log.Fatalf("Database unreachable: %v", err)
+		log.Printf("[WARNING] Database ping failed initially: %v (Will retry on incoming requests)", err)
+	} else {
+		log.Println("Connected to MySQL 'mininetflix' successfully.")
 	}
-	log.Println("Connected to MySQL 'mininetflix' successfully.")
 
-	// Register HTTP Routes (Universal multiplexer compatibility)
+	// Register HTTP Routes
 	mux := http.NewServeMux()
+
+	// Web UI & Static assets
+	mux.HandleFunc("/", uiHandler)
+	mux.HandleFunc("/ui", uiHandler)
+
+	// Keep-alive & Healthcheck
+	mux.HandleFunc("/health", healthHandler)
+	mux.HandleFunc("/ping", healthHandler)
+
+	// Business REST API Routes
 	mux.HandleFunc("/api/catalog", catalogHandler)
 	mux.HandleFunc("/api/movies", createMovieHandler)
 	mux.HandleFunc("/api/profiles", profilesHandler)
 	mux.HandleFunc("/api/watchlist", watchlistHandler)
 	mux.HandleFunc("/api/ratings", ratingsHandler)
 	mux.HandleFunc("/api/sessions/start", startSessionHandler)
+	mux.HandleFunc("/api/sessions", listSessionsHandler)
 	mux.HandleFunc("/api/history/progress", historyProgressHandler)
 
+	handler := corsMiddleware(mux)
+
+	port := getEnv("PORT", "8080")
 	server := &http.Server{
-		Addr:         ":8080",
-		Handler:      mux,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 10 * time.Second,
+		Addr:         ":" + port,
+		Handler:      handler,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
 	}
 
-	log.Println("Mini-Netflix REST API running on http://localhost:8080")
+	log.Printf("Mini-Netflix REST API & Portal listening on port %s", port)
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		log.Fatalf("Server stopped: %v", err)
+		log.Fatalf("Server stopped unexpectedly: %v", err)
 	}
 }
