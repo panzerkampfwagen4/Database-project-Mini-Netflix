@@ -464,11 +464,11 @@ func watchlistHandler(w http.ResponseWriter, r *http.Request) {
 		defer rows.Close()
 
 		type WatchlistItem struct {
-			TitleID        string    `json:"title_id"`
-			TitleName      string    `json:"title_name"`
-			ContentType    string    `json:"content_type"`
-			MaturityRating string    `json:"maturity_rating"`
-			AddedAt        time.Time `json:"added_at"`
+			TitleID        string `json:"title_id"`
+			TitleName      string `json:"title_name"`
+			ContentType    string `json:"content_type"`
+			MaturityRating string `json:"maturity_rating"`
+			AddedAt        string `json:"added_at"`
 		}
 
 		watchlist := make([]WatchlistItem, 0)
@@ -637,14 +637,14 @@ func listSessionsHandler(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close()
 
 	type SessionDTO struct {
-		SessionID         string    `json:"session_id"`
-		AccountID         int       `json:"account_id"`
-		ProfileID         int       `json:"profile_id"`
-		ProfileName       string    `json:"profile_name"`
-		IPAddress         string    `json:"ip_address"`
-		DeviceFingerprint *string   `json:"device_fingerprint,omitempty"`
-		StartedAt         time.Time `json:"started_at"`
-		SessionStatus     string    `json:"session_status"`
+		SessionID         string  `json:"session_id"`
+		AccountID         int     `json:"account_id"`
+		ProfileID         int     `json:"profile_id"`
+		ProfileName       string  `json:"profile_name"`
+		IPAddress         string  `json:"ip_address"`
+		DeviceFingerprint *string `json:"device_fingerprint,omitempty"`
+		StartedAt         string  `json:"started_at"`
+		SessionStatus     string  `json:"session_status"`
 	}
 
 	sessions := make([]SessionDTO, 0)
@@ -708,16 +708,25 @@ func historyProgressHandler(w http.ResponseWriter, r *http.Request) {
 // ============================================================================
 
 func buildDSN() string {
-	if dsn := os.Getenv("DB_DSN"); dsn != "" {
-		return dsn
-	}
-	user := getEnv("DB_USER", "root")
-	pass := getEnv("DB_PASSWORD", "root")
-	host := getEnv("DB_HOST", "127.0.0.1")
-	port := getEnv("DB_PORT", "3306")
-	name := getEnv("DB_NAME", "mininetflix")
+	dsn := os.Getenv("DB_DSN")
+	if dsn == "" {
+		user := getEnv("DB_USER", "root")
+		pass := getEnv("DB_PASSWORD", "root")
+		host := getEnv("DB_HOST", "127.0.0.1")
+		port := getEnv("DB_PORT", "3306")
+		name := getEnv("DB_NAME", "mininetflix")
 
-	return fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true&charset=utf8mb4&tls=preferred", user, pass, host, port, name)
+		dsn = fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&tls=preferred", user, pass, host, port, name)
+	}
+
+	if !strings.Contains(dsn, "parseTime=true") {
+		if strings.Contains(dsn, "?") {
+			dsn += "&parseTime=true"
+		} else {
+			dsn += "?parseTime=true"
+		}
+	}
+	return dsn
 }
 
 func main() {
