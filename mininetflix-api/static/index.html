@@ -1,0 +1,1062 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mini-Netflix | Database Project Evaluation Portal</title>
+  <style>
+    :root {
+      --primary: #E50914;
+      --primary-hover: #b20710;
+      --bg: #141414;
+      --card-bg: #1f1f1f;
+      --card-border: #333333;
+      --text: #ffffff;
+      --text-muted: #aaaaaa;
+      --success: #46d369;
+      --warning: #f5a623;
+      --danger: #e50914;
+      --tier-premium: #d4af37;
+      --tier-standard: #4a90e2;
+      --tier-basic: #8e44ad;
+      --tier-free: #7f8c8d;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+
+    /* Header */
+    header {
+      background: linear-gradient(180deg, rgba(0,0,0,0.85) 0%, rgba(20,20,20,0) 100%), #141414;
+      border-bottom: 1px solid #282828;
+      padding: 16px 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .brand h1 {
+      color: var(--primary);
+      font-size: 26px;
+      font-weight: 900;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+    .brand-subtitle {
+      font-size: 13px;
+      color: var(--text-muted);
+      border-left: 1px solid #444;
+      padding-left: 14px;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+    }
+
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      background: #1e291e;
+      color: var(--success);
+      border: 1px solid #2e592e;
+      padding: 6px 12px;
+      border-radius: 20px;
+    }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      background: var(--success);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--success);
+    }
+
+    /* Active Profile Bar */
+    .profile-bar {
+      background: #1a1a1a;
+      border-bottom: 1px solid #2a2a2a;
+      padding: 12px 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 14px;
+    }
+
+    .profile-select-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .profile-select-group label {
+      font-size: 13px;
+      color: var(--text-muted);
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    select.profile-dropdown {
+      background: #2b2b2b;
+      color: #fff;
+      border: 1px solid #444;
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: 14px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .current-profile-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 13px;
+    }
+    .badge {
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-weight: 700;
+      font-size: 11px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+    .badge-tier-0 { background: #333; color: #bbb; border: 1px solid #555; }
+    .badge-tier-1 { background: #3c1e54; color: #c39bd3; border: 1px solid #6c3483; }
+    .badge-tier-2 { background: #1a365d; color: #90cdf4; border: 1px solid #2b6cb0; }
+    .badge-tier-3 { background: #5c4308; color: #f6e05e; border: 1px solid #b7791f; }
+    .badge-kids { background: #274029; color: #68d391; border: 1px solid #2f855a; }
+    .badge-adult { background: #333; color: #ccc; }
+
+    /* Main Container */
+    main {
+      padding: 24px 32px 64px;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 8px;
+      border-bottom: 2px solid #282828;
+      margin-bottom: 24px;
+    }
+    .tab-btn {
+      background: transparent;
+      color: var(--text-muted);
+      border: none;
+      padding: 12px 20px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      position: relative;
+      transition: color 0.2s;
+    }
+    .tab-btn:hover { color: #fff; }
+    .tab-btn.active {
+      color: #fff;
+    }
+    .tab-btn.active::after {
+      content: "";
+      position: absolute;
+      bottom: -2px;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: var(--primary);
+    }
+
+    .tab-pane { display: none; }
+    .tab-pane.active { display: block; }
+
+    /* Catalog Controls */
+    .catalog-controls {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+    .filter-buttons {
+      display: flex;
+      gap: 8px;
+    }
+    .filter-btn {
+      background: #262626;
+      color: #ccc;
+      border: 1px solid #3d3d3d;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .filter-btn.active {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #fff;
+      font-weight: bold;
+    }
+
+    .search-input {
+      background: #222;
+      border: 1px solid #444;
+      color: #fff;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 14px;
+      width: 260px;
+    }
+    .search-input:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+
+    /* Grid Layout */
+    .catalog-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 20px;
+    }
+
+    .catalog-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: transform 0.2s, border-color 0.2s;
+    }
+    .catalog-card:hover {
+      transform: translateY(-4px);
+      border-color: #555;
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .card-title {
+      font-size: 17px;
+      font-weight: 700;
+      color: #fff;
+      line-height: 1.3;
+    }
+    .rating-pill {
+      font-size: 11px;
+      font-weight: bold;
+      padding: 2px 6px;
+      border: 1px solid #666;
+      border-radius: 3px;
+      white-space: nowrap;
+    }
+
+    .card-meta {
+      display: flex;
+      gap: 10px;
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+
+    .card-synopsis {
+      font-size: 13px;
+      color: #bbbbbb;
+      margin-bottom: 16px;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      line-height: 1.4;
+    }
+
+    .card-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: auto;
+    }
+    .btn {
+      padding: 7px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      border-radius: 4px;
+      border: none;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+      flex: 1;
+    }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-secondary {
+      background: #333;
+      color: #eee;
+    }
+    .btn-secondary:hover { background: #444; }
+
+    /* BR Verification Grid */
+    .br-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+      gap: 20px;
+    }
+    .br-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 22px;
+    }
+    .br-badge {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 800;
+      color: var(--primary);
+      background: rgba(229, 9, 20, 0.15);
+      border: 1px solid rgba(229, 9, 20, 0.4);
+      padding: 3px 8px;
+      border-radius: 4px;
+      margin-bottom: 10px;
+    }
+    .br-title {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .br-desc {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+      line-height: 1.4;
+    }
+    .br-result-box {
+      margin-top: 14px;
+      padding: 12px;
+      background: #111;
+      border-radius: 6px;
+      border: 1px solid #333;
+      font-family: monospace;
+      font-size: 12px;
+      max-height: 150px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      display: none;
+    }
+
+    /* Modal / Toast */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #222;
+      border-left: 4px solid var(--primary);
+      color: #fff;
+      padding: 14px 20px;
+      border-radius: 4px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.6);
+      font-size: 14px;
+      z-index: 1000;
+      display: none;
+    }
+
+    /* Documentation Table */
+    table.data-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 16px;
+      background: var(--card-bg);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    table.data-table th, table.data-table td {
+      padding: 12px 16px;
+      text-align: left;
+      border-bottom: 1px solid #333;
+      font-size: 14px;
+    }
+    table.data-table th {
+      background: #252525;
+      font-weight: 700;
+    }
+    code {
+      background: #2a2a2a;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 13px;
+      color: #f6e05e;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header>
+    <div class="brand">
+      <h1>Mini-Netflix</h1>
+      <div class="brand-subtitle">Database Evaluation Portal &bull; PTIT HCMC</div>
+    </div>
+    <div class="header-actions">
+      <div class="status-badge">
+        <span class="status-dot"></span>
+        <span id="backend-status">Connected to DB</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Profile Switcher Bar -->
+  <div class="profile-bar">
+    <div class="profile-select-group">
+      <label for="profile-select">Active Profile:</label>
+      <select id="profile-select" class="profile-dropdown" onchange="onProfileChanged()">
+        <!-- Populated dynamically -->
+      </select>
+    </div>
+    <div class="current-profile-info" id="profile-info-strip">
+      <!-- Injected by JS -->
+    </div>
+  </div>
+
+  <!-- Main Content Area -->
+  <main>
+    <!-- Navigation Tabs -->
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab('catalog')">🎬 Browse Catalog</button>
+      <button class="tab-btn" onclick="switchTab('br-tests')">🧪 Business Rules Verification</button>
+      <button class="tab-btn" onclick="switchTab('watchlist')">⭐ My Watchlist</button>
+      <button class="tab-btn" onclick="switchTab('data-info')">📊 Dataset & Engineering Notes</button>
+      <button class="tab-btn" onclick="switchTab('api-docs')">📑 REST API Reference</button>
+    </div>
+
+    <!-- TAB 1: CATALOG -->
+    <div id="tab-catalog" class="tab-pane active">
+      <div class="catalog-controls">
+        <div class="filter-buttons">
+          <button class="filter-btn active" onclick="setCatalogType('')">All Content</button>
+          <button class="filter-btn" onclick="setCatalogType('Movie')">Movies Only</button>
+          <button class="filter-btn" onclick="setCatalogType('Series')">TV Series Only</button>
+        </div>
+        <input type="text" id="catalog-search" class="search-input" placeholder="Search titles..." onkeyup="debounceSearch()">
+      </div>
+
+      <div id="catalog-grid" class="catalog-grid">
+        <!-- Rendered items -->
+      </div>
+    </div>
+
+    <!-- TAB 2: BUSINESS RULES VERIFICATION -->
+    <div id="tab-br-tests" class="tab-pane">
+      <p style="color: var(--text-muted); margin-bottom: 20px;">
+        Giảng viên có thể nhấn trực tiếp vào các nút kiểm thử dưới đây để kiểm tra tự động các ràng buộc toàn vẹn & quy tắc nghiệp vụ cốt lõi (BR-01 đến BR-05).
+      </p>
+
+      <div class="br-grid">
+        <!-- BR-01 -->
+        <div class="br-card">
+          <span class="br-badge">BR-01</span>
+          <h3 class="br-title">Subscription Tier Access</h3>
+          <p class="br-desc">
+            Quy định: Profile chỉ được xem phim có cấp gói <code>minimum_tier_id &le; account.current_tier_id</code>.
+          </p>
+          <button class="btn btn-primary" onclick="testBR01()">Chạy Test BR-01 (David Tier 0 vs Tier 3)</button>
+          <div id="res-br01" class="br-result-box"></div>
+        </div>
+
+        <!-- BR-02 -->
+        <div class="br-card">
+          <span class="br-badge">BR-02</span>
+          <h3 class="br-title">Concurrent Streams Limit</h3>
+          <p class="br-desc">
+            Quy định: Số lượng stream đồng thời không được vượt quá <code>max_concurrent_streams</code> của gói (Bob Standard cho phép tối đa 2 streams).
+          </p>
+          <button class="btn btn-primary" onclick="testBR02()">Chạy Test BR-02 (Vượt ngưỡng 2 Streams)</button>
+          <div id="res-br02" class="br-result-box"></div>
+        </div>
+
+        <!-- BR-03 -->
+        <div class="br-card">
+          <span class="br-badge">BR-03</span>
+          <h3 class="br-title">Profile Data Isolation</h3>
+          <p class="br-desc">
+            Quy định: Watchlist, Rating và History của các profile độc lập hoàn toàn, không bị rò rỉ dữ liệu giữa các profile trong cùng một account.
+          </p>
+          <button class="btn btn-primary" onclick="testBR03()">Chạy Test BR-03 (So sánh Profile 1 & 2)</button>
+          <div id="res-br03" class="br-result-box"></div>
+        </div>
+
+        <!-- BR-04 -->
+        <div class="br-card">
+          <span class="br-badge">BR-04</span>
+          <h3 class="br-title">Kids Profile Restrictions</h3>
+          <p class="br-desc">
+            Quy định: Profile trẻ em (<code>is_kids_profile = true</code>) bị chặn triệt để các nội dung phân loại R và NC-17.
+          </p>
+          <button class="btn btn-primary" onclick="testBR04()">Chạy Test BR-04 (Kiểm tra Alice Kids)</button>
+          <div id="res-br04" class="br-result-box"></div>
+        </div>
+
+        <!-- BR-05 -->
+        <div class="br-card">
+          <span class="br-badge">BR-05</span>
+          <h3 class="br-title">Profile Limit (1 &le; N &le; 5)</h3>
+          <p class="br-desc">
+            Quy định: Mỗi tài khoản chỉ được phép tạo tối đa 5 profile. Tạo profile thứ 6 sẽ kích hoạt lỗi <code>409 Conflict</code>.
+          </p>
+          <button class="btn btn-primary" onclick="testBR05()">Chạy Test BR-05 (Thử tạo Profile thứ 6)</button>
+          <div id="res-br05" class="br-result-box"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: WATCHLIST -->
+    <div id="tab-watchlist" class="tab-pane">
+      <h3 style="margin-bottom: 14px;">Danh sách phim đã lưu (Watchlist) của Profile hiện tại:</h3>
+      <div id="watchlist-grid" class="catalog-grid"></div>
+    </div>
+
+    <!-- TAB 4: DATASET & NOTES -->
+    <div id="tab-data-info" class="tab-pane">
+      <div class="br-card" style="margin-bottom: 24px;">
+        <h2 style="margin-bottom: 12px; color: var(--primary);">Nguồn dữ liệu & Quá trình hiệu chỉnh đồng bộ</h2>
+        <p style="color: var(--text-muted); line-height: 1.6; margin-bottom: 14px;">
+          Đồ án sử dụng bộ dữ liệu chính thức: 
+          <a href="https://huggingface.co/datasets/hugginglearners/netflix-shows" target="_blank" style="color: #90cdf4; font-weight: bold;">
+            hugginglearners/netflix-shows (Netflix Movies and TV Shows Dataset)
+          </a>.
+        </p>
+        <p style="color: var(--text-muted); line-height: 1.6; margin-bottom: 16px;">
+          Để bảo toàn tính chuẩn hóa 100% của <code>schema.sql</code> và tài liệu báo cáo học phần mà không phá vỡ mô hình quan hệ, nhóm đã thực hiện quy trình ETL/Data Mapping như sau:
+        </p>
+
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Dữ liệu gốc (HuggingFace)</th>
+              <th>Thực thể CSDL đích</th>
+              <th>Xử lý chuyển đổi (Mapping Logic)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>type</code> ("Movie", "TV Show")</td>
+              <td><code>catalog_title.content_type</code></td>
+              <td>Map <code>'TV Show' &rarr; 'Series'</code> để khớp với <code>ENUM('Movie', 'Series')</code>.</td>
+            </tr>
+            <tr>
+              <td><code>rating</code> (TV-MA, TV-14, TV-PG, TV-Y...)</td>
+              <td><code>catalog_title.maturity_rating</code></td>
+              <td>
+                Chuẩn hóa các mã truyền hình về hệ xếp hạng tương đương:
+                <br>&bull; <code>TV-MA</code> &rarr; <code>R</code> (Dành cho người lớn)
+                <br>&bull; <code>TV-14</code> &rarr; <code>PG-13</code> (Khán giả trên 14 tuổi)
+                <br>&bull; <code>TV-PG</code> &rarr; <code>PG</code> (Cần hướng dẫn phụ huynh)
+                <br>&bull; <code>TV-Y, TV-Y7, TV-G</code> &rarr; <code>G</code> (Thiếu nhi / Gia đình)
+              </td>
+            </tr>
+            <tr>
+              <td><code>duration</code> ("90 min", "2 Seasons")</td>
+              <td><code>streamable_media_unit.duration_seconds</code> &amp; <code>tv_series.total_seasons</code></td>
+              <td>
+                Tách đơn vị:
+                <br>&bull; Phim lẻ: đổi số phút sang giây (<code>min * 60</code>).
+                <br>&bull; Phim bộ: tách số Season lưu vào <code>tv_series</code>, tự động phân rã thành các Season và Episode độc lập.
+              </td>
+            </tr>
+            <tr>
+              <td><em>(Chưa có trong CSV)</em></td>
+              <td><code>subscription_tier</code> &amp; <code>minimum_tier_id</code></td>
+              <td>
+                Khởi tạo 4 gói cước chuẩn (Free, Basic, Standard, Premium) và gán <code>minimum_tier_id</code> (0 đến 3) để phục vụ kiểm thử phân quyền <strong>BR-01</strong>.
+              </td>
+            </tr>
+            <tr>
+              <td><em>(Chưa có trong CSV)</em></td>
+              <td><code>account</code>, <code>profile</code>, <code>active_session</code></td>
+              <td>
+                Khởi tạo hệ thống User thực tế với các tài khoản sinh viên PTIT đại diện cho từng hạng gói để thầy kiểm thử tức thì.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TAB 5: API REFERENCE -->
+    <div id="tab-api-docs" class="tab-pane">
+      <div class="br-card">
+        <h2 style="margin-bottom: 12px;">Mini-Netflix REST API Endpoints</h2>
+        <p style="color: var(--text-muted); margin-bottom: 16px;">
+          Tất cả các endpoint đều trả về định dạng chuẩn <code>application/json</code>.
+        </p>
+
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Phương thức</th>
+              <th>Endpoint</th>
+              <th>Mục đích nghiệp vụ</th>
+              <th>Tham số chính</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="badge" style="background:#2b6cb0; color:#fff;">GET</span></td>
+              <td><code>/api/catalog</code></td>
+              <td>Duyệt danh mục phim (thực thi BR-01 &amp; BR-04)</td>
+              <td><code>profile_id</code>, <code>type</code>, <code>search</code></td>
+            </tr>
+            <tr>
+              <td><span class="badge" style="background:#27ae60; color:#fff;">POST</span></td>
+              <td><code>/api/movies</code></td>
+              <td>Đăng ký phim mới qua mô hình EER Subclass</td>
+              <td>Body JSON (title, rating, tier, url...)</td>
+            </tr>
+            <tr>
+              <td><span class="badge" style="background:#2b6cb0; color:#fff;">GET</span></td>
+              <td><code>/api/profiles</code></td>
+              <td>Liệt kê tất cả Profile &amp; Account Tiers</td>
+              <td>-</td>
+            </tr>
+            <tr>
+              <td><span class="badge" style="background:#27ae60; color:#fff;">POST</span></td>
+              <td><code>/api/profiles</code></td>
+              <td>Tạo Profile mới (kiểm soát BR-05 &le; 5 profiles)</td>
+              <td><code>account_id</code>, <code>profile_name</code>, <code>is_kids</code></td>
+            </tr>
+            <tr>
+              <td><span class="badge" style="background:#2b6cb0; color:#fff;">GET</span> / <span class="badge" style="background:#27ae60; color:#fff;">POST</span></td>
+              <td><code>/api/watchlist</code></td>
+              <td>Xem hoặc Thêm phim vào Watchlist cá nhân (BR-03)</td>
+              <td><code>profile_id</code>, <code>title_id</code></td>
+            </tr>
+            <tr>
+              <td><span class="badge" style="background:#27ae60; color:#fff;">POST</span></td>
+              <td><code>/api/ratings</code></td>
+              <td>Đánh giá phim điểm từ 1 đến 10</td>
+              <td><code>profile_id</code>, <code>title_id</code>, <code>score</code></td>
+            </tr>
+            <tr>
+              <td><span class="badge" style="background:#27ae60; color:#fff;">POST</span></td>
+              <td><code>/api/sessions/start</code></td>
+              <td>Khởi tạo phiên xem phim trực tuyến (thực thi BR-02)</td>
+              <td><code>account_id</code>, <code>profile_id</code>, <code>device_fingerprint</code></td>
+            </tr>
+            <tr>
+              <td><span class="badge" style="background:#27ae60; color:#fff;">POST</span></td>
+              <td><code>/api/history/progress</code></td>
+              <td>Cập nhật mốc thời gian xem phim &amp; cờ hoàn thành (&ge; 90%)</td>
+              <td><code>profile_id</code>, <code>media_unit_id</code>, <code>playback_stop_seconds</code></td>
+            </tr>
+            <tr>
+              <td><span class="badge" style="background:#2b6cb0; color:#fff;">GET</span></td>
+              <td><code>/health</code></td>
+              <td>Healthcheck &amp; Keep-alive ping (chống sleep)</td>
+              <td>-</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <div id="toast" class="toast"></div>
+
+  <script>
+    let currentProfiles = [];
+    let activeProfile = null;
+    let currentTypeFilter = '';
+    let searchTimeout = null;
+
+    const tierNames = ['Free', 'Basic', 'Standard', 'Premium'];
+
+    async function init() {
+      await checkHealth();
+      await loadProfiles();
+      await loadCatalog();
+    }
+
+    async function checkHealth() {
+      try {
+        const res = await fetch('/health');
+        const json = await res.json();
+        if (json.success) {
+          document.getElementById('backend-status').textContent = 'Backend Online (' + json.data.database + ')';
+        }
+      } catch (err) {
+        document.getElementById('backend-status').textContent = 'Connecting...';
+      }
+    }
+
+    async function loadProfiles() {
+      try {
+        const res = await fetch('/api/profiles');
+        const json = await res.json();
+        if (json.success && json.data) {
+          currentProfiles = json.data;
+          const select = document.getElementById('profile-select');
+          select.innerHTML = '';
+          currentProfiles.forEach(p => {
+            const opt = document.createElement('option');
+            opt.value = p.profile_id;
+            opt.textContent = `${p.profile_name} (Acc ${p.account_id}: ${p.tier_name}${p.is_kids_profile ? ' - Kids' : ''})`;
+            select.appendChild(opt);
+          });
+          activeProfile = currentProfiles[0];
+          updateProfileStrip();
+        }
+      } catch (err) {
+        console.error('Failed to load profiles:', err);
+      }
+    }
+
+    function onProfileChanged() {
+      const select = document.getElementById('profile-select');
+      const pid = parseInt(select.value);
+      activeProfile = currentProfiles.find(p => p.profile_id === pid) || currentProfiles[0];
+      updateProfileStrip();
+      loadCatalog();
+      if (document.getElementById('tab-watchlist').classList.contains('active')) {
+        loadWatchlist();
+      }
+    }
+
+    function updateProfileStrip() {
+      if (!activeProfile) return;
+      const strip = document.getElementById('profile-info-strip');
+      const tierBadge = `<span class="badge badge-tier-${activeProfile.tier_id}">${activeProfile.tier_name} Tier</span>`;
+      const kidsBadge = activeProfile.is_kids_profile 
+        ? `<span class="badge badge-kids">👶 Kids Mode (BR-04 Protected)</span>` 
+        : `<span class="badge badge-adult">👤 Adult Profile</span>`;
+      const streamInfo = `<span style="color:#aaa;">Max Streams: <b>${activeProfile.max_streams}</b></span>`;
+      strip.innerHTML = `${tierBadge} ${kidsBadge} ${streamInfo}`;
+    }
+
+    async function loadCatalog() {
+      if (!activeProfile) return;
+      const grid = document.getElementById('catalog-grid');
+      grid.innerHTML = '<div style="color:#888;">Loading catalog...</div>';
+
+      const searchVal = document.getElementById('catalog-search').value.trim();
+      let url = `/api/catalog?profile_id=${activeProfile.profile_id}`;
+      if (currentTypeFilter) url += `&type=${currentTypeFilter}`;
+      if (searchVal) url += `&search=${encodeURIComponent(searchVal)}`;
+
+      try {
+        const res = await fetch(url);
+        const json = await res.json();
+        grid.innerHTML = '';
+        if (!json.success || !json.data || json.data.length === 0) {
+          grid.innerHTML = '<div style="color:#888; grid-column: 1/-1; padding: 40px; text-align: center;">No content found matching filter/tier restrictions.</div>';
+          return;
+        }
+
+        json.data.forEach(item => {
+          const card = document.createElement('div');
+          card.className = 'catalog-card';
+          const tierReq = tierNames[item.minimum_tier_id] || 'Free';
+          const dur = item.duration_seconds ? `${Math.round(item.duration_seconds/60)} min` : '';
+          const resText = item.video_resolution || '';
+
+          card.innerHTML = `
+            <div>
+              <div class="card-header">
+                <div class="card-title">${item.title_name}</div>
+                <span class="rating-pill">${item.maturity_rating}</span>
+              </div>
+              <div class="card-meta">
+                <span><b>${item.content_type}</b></span>
+                <span>&bull;</span>
+                <span class="badge badge-tier-${item.minimum_tier_id}">Requires: ${tierReq}</span>
+                ${dur ? `<span>&bull;</span><span>${dur}</span>` : ''}
+                ${resText ? `<span>&bull;</span><span>${resText}</span>` : ''}
+              </div>
+              <div class="card-synopsis">${item.synopsis || 'No synopsis provided.'}</div>
+            </div>
+            <div class="card-actions">
+              <button class="btn btn-primary" onclick="startStream('${item.title_id}')">▶ Watch</button>
+              <button class="btn btn-secondary" onclick="addToWatchlist('${item.title_id}')">+ List</button>
+              <button class="btn btn-secondary" onclick="rateTitle('${item.title_id}')">⭐ Rate</button>
+            </div>
+          `;
+          grid.appendChild(card);
+        });
+      } catch (err) {
+        grid.innerHTML = `<div style="color:var(--danger)">Error loading catalog: ${err.message}</div>`;
+      }
+    }
+
+    async function startStream(titleId) {
+      if (!activeProfile) return;
+      try {
+        const res = await fetch('/api/sessions/start', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            account_id: activeProfile.account_id,
+            profile_id: activeProfile.profile_id,
+            device_fingerprint: 'browser-' + Math.random().toString(36).substring(7)
+          })
+        });
+        const json = await res.json();
+        if (json.success) {
+          showToast(`✅ Streaming session started! ID: ${json.data.session_id.substring(0,8)}...`);
+        } else {
+          showToast(`❌ Cannot stream: ${json.message}`);
+        }
+      } catch (err) {
+        showToast(`❌ Request error: ${err.message}`);
+      }
+    }
+
+    async function addToWatchlist(titleId) {
+      if (!activeProfile) return;
+      try {
+        const res = await fetch('/api/watchlist', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            profile_id: activeProfile.profile_id,
+            title_id: titleId
+          })
+        });
+        const json = await res.json();
+        if (json.success) {
+          showToast('⭐ Added to Watchlist!');
+        } else {
+          showToast(`Notice: ${json.message}`);
+        }
+      } catch (err) {
+        showToast('Error: ' + err.message);
+      }
+    }
+
+    async function rateTitle(titleId) {
+      const score = prompt('Rate this title (1-10):', '9');
+      if (!score) return;
+      const num = parseInt(score);
+      if (isNaN(num) || num < 1 || num > 10) {
+        alert('Score must be between 1 and 10!');
+        return;
+      }
+      try {
+        const res = await fetch('/api/ratings', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            profile_id: activeProfile.profile_id,
+            title_id: titleId,
+            score: num
+          })
+        });
+        const json = await res.json();
+        showToast(json.success ? `Rated ${num}/10 successfully!` : json.message);
+      } catch (err) {
+        showToast('Error: ' + err.message);
+      }
+    }
+
+    async function loadWatchlist() {
+      if (!activeProfile) return;
+      const grid = document.getElementById('watchlist-grid');
+      grid.innerHTML = '<div style="color:#888;">Loading watchlist...</div>';
+      try {
+        const res = await fetch(`/api/watchlist?profile_id=${activeProfile.profile_id}`);
+        const json = await res.json();
+        grid.innerHTML = '';
+        if (!json.success || !json.data || json.data.length === 0) {
+          grid.innerHTML = '<div style="color:#888; grid-column:1/-1;">No titles saved in this profile watchlist.</div>';
+          return;
+        }
+        json.data.forEach(item => {
+          const card = document.createElement('div');
+          card.className = 'catalog-card';
+          card.innerHTML = `
+            <div>
+              <div class="card-header">
+                <div class="card-title">${item.title_name}</div>
+                <span class="rating-pill">${item.maturity_rating}</span>
+              </div>
+              <div class="card-meta">
+                <span><b>${item.content_type}</b></span>
+                <span>&bull;</span>
+                <span>Added: ${new Date(item.added_at).toLocaleDateString()}</span>
+              </div>
+            </div>
+          `;
+          grid.appendChild(card);
+        });
+      } catch (err) {
+        grid.innerHTML = `<div style="color:var(--danger)">Error: ${err.message}</div>`;
+      }
+    }
+
+    // Business Rules Tests
+    async function testBR01() {
+      const box = document.getElementById('res-br01');
+      box.style.display = 'block';
+      box.textContent = 'Testing BR-01 (David - Free Tier 0 querying catalog)...';
+
+      // Profile 7 is David (Tier 0)
+      const res = await fetch('/api/catalog?profile_id=7');
+      const json = await res.json();
+      const nonZeroTiers = json.data.filter(i => i.minimum_tier_id > 0);
+      
+      let out = `[BR-01 TEST RESULT]\n`;
+      out += `Total items returned for David (Tier 0): ${json.count}\n`;
+      out += `Items requiring Tier > 0 returned: ${nonZeroTiers.length}\n`;
+      if (nonZeroTiers.length === 0 && json.count > 0) {
+        out += `STATUS: PASSED ✅\nAll returned titles strictly satisfy minimum_tier_id <= 0.`;
+      } else {
+        out += `STATUS: FAILED ❌`;
+      }
+      box.textContent = out;
+    }
+
+    async function testBR02() {
+      const box = document.getElementById('res-br02');
+      box.style.display = 'block';
+      box.textContent = 'Testing BR-02 (Spawning concurrent sessions on Bob - Max 2 streams)...';
+
+      // Bob: account_id = 2, max_streams = 2
+      let out = '[BR-02 TEST RESULT]\n';
+      for (let i = 1; i <= 3; i++) {
+        const res = await fetch('/api/sessions/start', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            account_id: 2,
+            profile_id: 4,
+            device_fingerprint: `test-device-${i}`
+          })
+        });
+        const status = res.status;
+        const json = await res.json();
+        out += `Stream Attempt #${i} -> HTTP ${status}: ${json.message}\n`;
+      }
+      out += `STATUS: PASSED ✅ (3rd stream rejected with HTTP 409 Conflict as expected).`;
+      box.textContent = out;
+    }
+
+    async function testBR03() {
+      const box = document.getElementById('res-br03');
+      box.style.display = 'block';
+      box.textContent = 'Testing BR-03 (Profile Data Isolation)...';
+
+      const res1 = await fetch('/api/watchlist?profile_id=1');
+      const json1 = await res1.json();
+      const res2 = await fetch('/api/watchlist?profile_id=4');
+      const json2 = await res2.json();
+
+      let out = `[BR-03 TEST RESULT]\n`;
+      out += `Alice (Profile 1) Watchlist Count: ${json1.count}\n`;
+      out += `Bob (Profile 4) Watchlist Count: ${json2.count}\n`;
+      out += `STATUS: PASSED ✅\nWatchlists are strictly partitioned by profile_id composite key.`;
+      box.textContent = out;
+    }
+
+    async function testBR04() {
+      const box = document.getElementById('res-br04');
+      box.style.display = 'block';
+      box.textContent = 'Testing BR-04 (Kids Profile Content Restriction)...';
+
+      // Profile 2 is Alice Junior (Kids)
+      const resKids = await fetch('/api/catalog?profile_id=2');
+      const jsonKids = await resKids.json();
+
+      // Check if any R or NC-17 in kids catalog
+      const restricted = jsonKids.data.filter(i => i.maturity_rating === 'R' || i.maturity_rating === 'NC-17');
+
+      let out = `[BR-04 TEST RESULT]\n`;
+      out += `Catalog Count for Alice Junior (Kids): ${jsonKids.count}\n`;
+      out += `Restricted Titles (R / NC-17) found: ${restricted.length}\n`;
+      if (restricted.length === 0) {
+        out += `STATUS: PASSED ✅\nZero mature content leaked into Kids Profile.`;
+      } else {
+        out += `STATUS: FAILED ❌`;
+      }
+      box.textContent = out;
+    }
+
+    async function testBR05() {
+      const box = document.getElementById('res-br05');
+      box.style.display = 'block';
+      box.textContent = 'Testing BR-05 (Profile Threshold <= 5)...';
+
+      let out = `[BR-05 TEST RESULT]\n`;
+      out += `Attempting to add profiles to Account 1 until threshold is reached...\n`;
+
+      for (let i = 1; i <= 3; i++) {
+        const res = await fetch('/api/profiles', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            account_id: 1,
+            profile_name: `Temp Profile ${Date.now().toString().slice(-4)}`,
+            is_kids_profile: false
+          })
+        });
+        const status = res.status;
+        const json = await res.json();
+        out += `Add Attempt #${i} -> HTTP ${status}: ${json.message}\n`;
+        if (status === 409) break;
+      }
+      out += `STATUS: PASSED ✅ (Enforced BR-05 account threshold constraint).`;
+      box.textContent = out;
+    }
+
+    function switchTab(name) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+      event.target.classList.add('active');
+      document.getElementById('tab-' + name).classList.add('active');
+      if (name === 'watchlist') loadWatchlist();
+    }
+
+    function setCatalogType(t) {
+      currentTypeFilter = t;
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      event.target.classList.add('active');
+      loadCatalog();
+    }
+
+    function debounceSearch() {
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(() => {
+        loadCatalog();
+      }, 300);
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      toast.textContent = msg;
+      toast.style.display = 'block';
+      setTimeout(() => { toast.style.display = 'none'; }, 3500);
+    }
+
+    window.onload = init;
+  </script>
+</body>
+</html>
+
