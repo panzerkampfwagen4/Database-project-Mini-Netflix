@@ -41,16 +41,32 @@ type CatalogItemDTO struct {
 	Synopsis        *string `json:"synopsis,omitempty"`
 	DurationSeconds *int    `json:"duration_seconds,omitempty"`
 	VideoResolution *string `json:"video_resolution,omitempty"`
+	InWatchlist     bool    `json:"in_watchlist"`
+	HasWatched      bool    `json:"has_watched"`
 }
 
 type CreateMovieRequest struct {
 	TitleName       string `json:"title_name"`
-	MaturityRating  string `json:"maturity_rating"` // 'G', 'PG', 'PG-13', 'R', 'NC-17'
+	MaturityRating  string `json:"maturity_rating"`
 	MinimumTierID   int    `json:"minimum_tier_id"`
 	Synopsis        string `json:"synopsis"`
 	DurationSeconds int    `json:"duration_seconds"`
-	VideoResolution string `json:"video_resolution"` // '480p', '720p', '1080p', '4K UHD'
+	VideoResolution string `json:"video_resolution"`
 	StorageAssetURL string `json:"storage_asset_url"`
+}
+
+type CreateAccountRequest struct {
+	Email  string `json:"email"`
+	TierID int    `json:"tier_id"`
+}
+
+type UpdateTierRequest struct {
+	AccountID int `json:"account_id"`
+	TierID    int `json:"tier_id"`
+}
+
+type AccountActionRequest struct {
+	AccountID int `json:"account_id"`
 }
 
 type CreateProfileRequest struct {
@@ -67,12 +83,13 @@ type WatchlistRequest struct {
 type TitleRatingRequest struct {
 	ProfileID int    `json:"profile_id"`
 	TitleID   string `json:"title_id"`
-	Score     int    `json:"score"` // 1-10
+	Score     int    `json:"score"`
 }
 
 type StartSessionRequest struct {
 	AccountID         int    `json:"account_id"`
 	ProfileID         int    `json:"profile_id"`
+	TitleID           string `json:"title_id,omitempty"`
 	DeviceFingerprint string `json:"device_fingerprint"`
 }
 
@@ -124,13 +141,11 @@ func corsMiddleware(next http.Handler) http.Handler {
 // HTTP Handlers
 // ============================================================================
 
-// UI Handler: Serves embedded Single Page Application
 func uiHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_, _ = w.Write(indexHTML)
 }
 
-// Healthcheck & Ping Handler (Keeps server active on free cloud hosts)
 func healthHandler(w http.ResponseWriter, r *http.Request) {
 	dbStatus := "connected"
 	if err := db.Ping(); err != nil {
@@ -157,7 +172,7 @@ func catalogHandler(w http.ResponseWriter, r *http.Request) {
 
 	queryParams := r.URL.Query()
 	profileIDStr := queryParams.Get("profile_id")
-	search := queryParams.Get("search")
+	search := strings.TrimSpace(queryParams.Get("search"))
 	contentType := queryParams.Get("type")
 
 	if profileIDStr == "" {
@@ -170,7 +185,6 @@ func catalogHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Retrieve Profile and Account Tier Context
 	var isKids bool
 	var currentTierID int
 	var billingStatus string
@@ -190,7 +204,7 @@ func catalogHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Build Dynamic Parameterized Query
+	// Build parameterized query with subquery for in_watchlist and has_watched
 	query := `
 		SELECT 
 			ct.title_id, 
@@ -200,15 +214,26 @@ func catalogHandler(w http.ResponseWriter, r *http.Request) {
 			ct.minimum_tier_id, 
 			ct.synopsis,
 			smu.duration_seconds,
-			smu.video_resolution
+			smu.video_resolution,
+			EXISTS(SELECT 1 FROM watchlist w WHERE w.profile_id = ? AND w.title_id = ct.title_id) AS in_watchlist,
+			EXISTS(
+				SELECT 1 FROM watch_history wh 
+				JOIN movie_title mt2 ON wh.media_unit_id = mt2.media_unit_id 
+				WHERE wh.profile_id = ? AND mt2.title_id = ct.title_id
+				UNION
+				SELECT 1 FROM watch_history wh2
+				JOIN episode ep2 ON wh2.media_unit_id = ep2.media_unit_id
+				JOIN season sn2 ON ep2.season_id = sn2.season_id
+				WHERE wh2.profile_id = ? AND sn2.series_id = ct.title_id
+			) AS has_watched
 		FROM catalog_title ct
 		LEFT JOIN movie_title mt ON ct.title_id = mt.title_id
 		LEFT JOIN streamable_media_unit smu ON mt.media_unit_id = smu.media_unit_id
 		WHERE ct.minimum_tier_id <= ?
 	`
-	args := []any{currentTierID}
+	args := []any{profileID, profileID, profileID, currentTierID}
 
-	// BR-04: Kids Profile exclusion (Strictly forbids R and NC-17)
+	// BR-04: Kids Profile exclusion
 	if isKids {
 		query += " AND ct.maturity_rating NOT IN ('R', 'NC-17') "
 	}
@@ -219,10 +244,10 @@ func catalogHandler(w http.ResponseWriter, r *http.Request) {
 		args = append(args, contentType)
 	}
 
-	// Title search query
+	// Title search query (case-insensitive substring)
 	if search != "" {
-		query += " AND ct.title_name LIKE ? "
-		args = append(args, "%"+search+"%")
+		query += " AND LOWER(ct.title_name) LIKE ? "
+		args = append(args, "%"+strings.ToLower(search)+"%")
 	}
 
 	query += " ORDER BY ct.title_name ASC LIMIT 100;"
@@ -250,6 +275,8 @@ func catalogHandler(w http.ResponseWriter, r *http.Request) {
 			&synopsis,
 			&duration,
 			&resolution,
+			&item.InWatchlist,
+			&item.HasWatched,
 		); err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -276,7 +303,7 @@ func catalogHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, APIResponse{Success: true, Count: len(items), Data: items})
 }
 
-// 2. POST /api/movies: Register a new movie across the EER Subclasses
+// 2. POST /api/movies: Register a new movie
 func createMovieHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
@@ -297,14 +324,12 @@ func createMovieHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback()
 
-	// Generate UUIDs for catalog and media entities
 	var titleID, mediaID string
 	if err := tx.QueryRow("SELECT UUID(), UUID()").Scan(&titleID, &mediaID); err != nil {
 		writeError(w, http.StatusInternalServerError, "UUID generation error")
 		return
 	}
 
-	// 1. Insert into catalog_title (Superclass)
 	_, err = tx.ExecContext(ctx, `
 		INSERT INTO catalog_title (title_id, minimum_tier_id, title_name, maturity_rating, content_type, synopsis)
 		VALUES (?, ?, ?, ?, 'Movie', ?)
@@ -314,7 +339,6 @@ func createMovieHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 2. Insert into streamable_media_unit
 	_, err = tx.ExecContext(ctx, `
 		INSERT INTO streamable_media_unit (media_unit_id, duration_seconds, video_resolution, is_demo_or_trailer, storage_asset_url)
 		VALUES (?, ?, ?, FALSE, ?)
@@ -324,7 +348,6 @@ func createMovieHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 3. Link via movie_title (Option 8A Specialized Subclass)
 	_, err = tx.ExecContext(ctx, `
 		INSERT INTO movie_title (title_id, media_unit_id)
 		VALUES (?, ?)
@@ -360,12 +383,21 @@ func profilesHandler(w http.ResponseWriter, r *http.Request) {
 				p.profile_name, 
 				p.is_kids_profile,
 				a.email,
+				a.billing_status,
 				a.current_tier_id,
 				st.tier_name,
-				st.max_concurrent_streams
+				st.max_concurrent_streams,
+				st.monthly_price,
+				COALESCE(act.active_streams, 0) AS active_streams
 			FROM profile p
 			JOIN account a ON p.account_id = a.account_id
 			JOIN subscription_tier st ON a.current_tier_id = st.tier_id
+			LEFT JOIN (
+				SELECT account_id, COUNT(*) AS active_streams
+				FROM active_session
+				WHERE session_status = 'ACTIVE'
+				GROUP BY account_id
+			) act ON a.account_id = act.account_id
 			ORDER BY p.account_id, p.profile_id;
 		`)
 		if err != nil {
@@ -375,14 +407,17 @@ func profilesHandler(w http.ResponseWriter, r *http.Request) {
 		defer rows.Close()
 
 		type ProfileDTO struct {
-			ProfileID     int    `json:"profile_id"`
-			AccountID     int    `json:"account_id"`
-			ProfileName   string `json:"profile_name"`
-			IsKidsProfile bool   `json:"is_kids_profile"`
-			Email         string `json:"email"`
-			TierID        int    `json:"tier_id"`
-			TierName      string `json:"tier_name"`
-			MaxStreams    int    `json:"max_streams"`
+			ProfileID     int     `json:"profile_id"`
+			AccountID     int     `json:"account_id"`
+			ProfileName   string  `json:"profile_name"`
+			IsKidsProfile bool    `json:"is_kids_profile"`
+			Email         string  `json:"email"`
+			BillingStatus string  `json:"billing_status"`
+			TierID        int     `json:"tier_id"`
+			TierName      string  `json:"tier_name"`
+			MaxStreams    int     `json:"max_streams"`
+			MonthlyPrice  float64 `json:"monthly_price"`
+			ActiveStreams int     `json:"active_streams"`
 		}
 
 		profiles := make([]ProfileDTO, 0)
@@ -390,7 +425,8 @@ func profilesHandler(w http.ResponseWriter, r *http.Request) {
 			var p ProfileDTO
 			if err := rows.Scan(
 				&p.ProfileID, &p.AccountID, &p.ProfileName, &p.IsKidsProfile,
-				&p.Email, &p.TierID, &p.TierName, &p.MaxStreams,
+				&p.Email, &p.BillingStatus, &p.TierID, &p.TierName, &p.MaxStreams,
+				&p.MonthlyPrice, &p.ActiveStreams,
 			); err != nil {
 				writeError(w, http.StatusInternalServerError, err.Error())
 				return
@@ -406,7 +442,6 @@ func profilesHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Check Profile threshold (BR-05)
 		var currentCount int
 		err := db.QueryRow("SELECT COUNT(*) FROM profile WHERE account_id = ?", req.AccountID).Scan(&currentCount)
 		if err != nil {
@@ -440,7 +475,177 @@ func profilesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// 4. POST & GET /api/watchlist: M:N Associative Entity Management
+// 4. GET & POST /api/accounts: Account management, Billing, Tier Upgrades
+func accountsHandler(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		rows, err := db.Query(`
+			SELECT 
+				a.account_id, 
+				a.email, 
+				a.billing_status, 
+				a.current_tier_id, 
+				st.tier_name, 
+				st.monthly_price, 
+				st.max_concurrent_streams, 
+				DATE_FORMAT(a.registration_date, '%Y-%m-%d') AS reg_date,
+				DATE_FORMAT(a.next_billing_date, '%Y-%m-%d') AS next_bill_date,
+				(SELECT COUNT(*) FROM profile WHERE account_id = a.account_id) AS profile_count,
+				(SELECT COUNT(*) FROM active_session WHERE account_id = a.account_id AND session_status = 'ACTIVE') AS active_streams
+			FROM account a
+			JOIN subscription_tier st ON a.current_tier_id = st.tier_id
+			ORDER BY a.account_id ASC;
+		`)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		defer rows.Close()
+
+		type AccountDTO struct {
+			AccountID     int     `json:"account_id"`
+			Email         string  `json:"email"`
+			BillingStatus string  `json:"billing_status"`
+			TierID        int     `json:"tier_id"`
+			TierName      string  `json:"tier_name"`
+			MonthlyPrice  float64 `json:"monthly_price"`
+			MaxStreams    int     `json:"max_streams"`
+			RegDate       string  `json:"registration_date"`
+			NextBillDate  string  `json:"next_billing_date"`
+			ProfileCount  int     `json:"profile_count"`
+			ActiveStreams int     `json:"active_streams"`
+		}
+
+		accounts := make([]AccountDTO, 0)
+		for rows.Next() {
+			var a AccountDTO
+			if err := rows.Scan(
+				&a.AccountID, &a.Email, &a.BillingStatus, &a.TierID,
+				&a.TierName, &a.MonthlyPrice, &a.MaxStreams,
+				&a.RegDate, &a.NextBillDate, &a.ProfileCount, &a.ActiveStreams,
+			); err != nil {
+				writeError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+			accounts = append(accounts, a)
+		}
+		writeJSON(w, http.StatusOK, APIResponse{Success: true, Count: len(accounts), Data: accounts})
+
+	case http.MethodPost:
+		// Create new Account
+		var req CreateAccountRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeError(w, http.StatusBadRequest, "Invalid JSON payload")
+			return
+		}
+
+		if req.Email == "" {
+			writeError(w, http.StatusBadRequest, "Email cannot be empty")
+			return
+		}
+
+		res, err := db.Exec(`
+			INSERT INTO account (email, password_hash, billing_status, current_tier_id, next_billing_date)
+			VALUES (?, '$2a$12$defaultPasswordHashPlaceholder', 'ACTIVE', ?, DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY))
+		`, req.Email, req.TierID)
+		if err != nil {
+			writeError(w, http.StatusConflict, fmt.Sprintf("Failed to create account (email may exist): %v", err))
+			return
+		}
+
+		accID, _ := res.LastInsertId()
+		// Auto create default profile for this new account
+		_, _ = db.Exec("INSERT INTO profile (account_id, profile_name, is_kids_profile) VALUES (?, 'Primary', FALSE)", accID)
+
+		writeJSON(w, http.StatusCreated, APIResponse{
+			Success: true,
+			Message: "Account created successfully with primary profile",
+			Data:    map[string]any{"account_id": accID},
+		})
+
+	default:
+		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
+	}
+}
+
+// POST /api/accounts/tier: Upgrade or Downgrade Subscription Tier
+func updateAccountTierHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	var req UpdateTierRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "Invalid JSON payload")
+		return
+	}
+
+	_, err := db.Exec("UPDATE account SET current_tier_id = ? WHERE account_id = ?", req.TierID, req.AccountID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to update tier: %v", err))
+		return
+	}
+
+	writeJSON(w, http.StatusOK, APIResponse{Success: true, Message: "Subscription tier updated successfully"})
+}
+
+// POST /api/accounts/pay: Pay Bill / Renew Subscription (Changes SUSPENDED to ACTIVE)
+func payAccountBillHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	var req AccountActionRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "Invalid JSON payload")
+		return
+	}
+
+	_, err := db.Exec(`
+		UPDATE account 
+		SET billing_status = 'ACTIVE', next_billing_date = DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY) 
+		WHERE account_id = ?
+	`, req.AccountID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("Payment failed: %v", err))
+		return
+	}
+
+	writeJSON(w, http.StatusOK, APIResponse{
+		Success: true,
+		Message: "Payment successful! Account is now ACTIVE with 30 days streaming access.",
+	})
+}
+
+// POST /api/accounts/cancel: Cancel Subscription
+func cancelAccountHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	var req AccountActionRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "Invalid JSON payload")
+		return
+	}
+
+	_, err := db.Exec(`
+		UPDATE account 
+		SET billing_status = 'CANCELLED', cancelled_at = NOW() 
+		WHERE account_id = ?
+	`, req.AccountID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to cancel account: %v", err))
+		return
+	}
+
+	writeJSON(w, http.StatusOK, APIResponse{Success: true, Message: "Subscription cancelled successfully."})
+}
+
+// 5. POST, GET, DELETE /api/watchlist: M:N Associative Entity with Toggle Behavior
 func watchlistHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
@@ -451,7 +656,14 @@ func watchlistHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		rows, err := db.Query(`
-			SELECT ct.title_id, ct.title_name, ct.content_type, ct.maturity_rating, w.added_at
+			SELECT 
+				ct.title_id, 
+				ct.title_name, 
+				ct.content_type, 
+				ct.maturity_rating, 
+				DATE_FORMAT(w.added_at, '%Y-%m-%d %H:%i') AS added_at,
+				ct.minimum_tier_id,
+				COALESCE(ct.synopsis, '') AS synopsis
 			FROM watchlist w
 			JOIN catalog_title ct ON w.title_id = ct.title_id
 			WHERE w.profile_id = ?
@@ -469,12 +681,14 @@ func watchlistHandler(w http.ResponseWriter, r *http.Request) {
 			ContentType    string `json:"content_type"`
 			MaturityRating string `json:"maturity_rating"`
 			AddedAt        string `json:"added_at"`
+			MinimumTierID  int    `json:"minimum_tier_id"`
+			Synopsis       string `json:"synopsis"`
 		}
 
 		watchlist := make([]WatchlistItem, 0)
 		for rows.Next() {
 			var wi WatchlistItem
-			if err := rows.Scan(&wi.TitleID, &wi.TitleName, &wi.ContentType, &wi.MaturityRating, &wi.AddedAt); err != nil {
+			if err := rows.Scan(&wi.TitleID, &wi.TitleName, &wi.ContentType, &wi.MaturityRating, &wi.AddedAt, &wi.MinimumTierID, &wi.Synopsis); err != nil {
 				writeError(w, http.StatusInternalServerError, err.Error())
 				return
 			}
@@ -494,20 +708,58 @@ func watchlistHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		_, err := db.Exec("INSERT INTO watchlist (profile_id, title_id) VALUES (?, ?)", req.ProfileID, req.TitleID)
-		if err != nil {
-			writeError(w, http.StatusConflict, fmt.Sprintf("Could not add to watchlist: %v", err))
+		// Smart Toggle: Check if already in watchlist
+		var exists bool
+		_ = db.QueryRow("SELECT EXISTS(SELECT 1 FROM watchlist WHERE profile_id = ? AND title_id = ?)", req.ProfileID, req.TitleID).Scan(&exists)
+
+		if exists {
+			// Remove from watchlist
+			_, err := db.Exec("DELETE FROM watchlist WHERE profile_id = ? AND title_id = ?", req.ProfileID, req.TitleID)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to remove title: %v", err))
+				return
+			}
+			writeJSON(w, http.StatusOK, APIResponse{
+				Success: true,
+				Message: "Removed from your watchlist",
+				Data:    map[string]any{"in_watchlist": false},
+			})
 			return
 		}
 
-		writeJSON(w, http.StatusCreated, APIResponse{Success: true, Message: "Title added to watchlist"})
+		// Insert into watchlist
+		_, err := db.Exec("INSERT INTO watchlist (profile_id, title_id) VALUES (?, ?)", req.ProfileID, req.TitleID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to add to watchlist: %v", err))
+			return
+		}
+
+		writeJSON(w, http.StatusCreated, APIResponse{
+			Success: true,
+			Message: "Added to your watchlist successfully!",
+			Data:    map[string]any{"in_watchlist": true},
+		})
+
+	case http.MethodDelete:
+		profileIDStr := r.URL.Query().Get("profile_id")
+		titleID := r.URL.Query().Get("title_id")
+		if profileIDStr == "" || titleID == "" {
+			writeError(w, http.StatusBadRequest, "Missing profile_id or title_id")
+			return
+		}
+		_, err := db.Exec("DELETE FROM watchlist WHERE profile_id = ? AND title_id = ?", profileIDStr, titleID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, APIResponse{Success: true, Message: "Removed from watchlist"})
 
 	default:
 		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
 	}
 }
 
-// 5. POST /api/ratings: Rate a title (Score 1-10)
+// 6. POST /api/ratings: Rate a title (Score 1-10) with mandatory watch check
 func ratingsHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
@@ -525,6 +777,27 @@ func ratingsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Business Rule: Profile must have watched the title before rating!
+	var hasWatched bool
+	checkWatchedQuery := `
+		SELECT EXISTS (
+			SELECT 1 FROM watch_history wh
+			JOIN movie_title mt ON wh.media_unit_id = mt.media_unit_id
+			WHERE wh.profile_id = ? AND mt.title_id = ?
+			UNION
+			SELECT 1 FROM watch_history wh2
+			JOIN episode ep ON wh2.media_unit_id = ep.media_unit_id
+			JOIN season sn ON ep.season_id = sn.season_id
+			WHERE wh2.profile_id = ? AND sn.series_id = ?
+		)
+	`
+	_ = db.QueryRow(checkWatchedQuery, req.ProfileID, req.TitleID, req.ProfileID, req.TitleID).Scan(&hasWatched)
+
+	if !hasWatched {
+		writeError(w, http.StatusForbidden, "Business Rule: You have not watched this title yet! Please click '▶ Watch' before submitting a rating.")
+		return
+	}
+
 	query := `
 		INSERT INTO title_rating (profile_id, title_id, score, rated_at)
 		VALUES (?, ?, ?, NOW())
@@ -536,10 +809,10 @@ func ratingsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, APIResponse{Success: true, Message: "Rating recorded successfully"})
+	writeJSON(w, http.StatusOK, APIResponse{Success: true, Message: fmt.Sprintf("Thank you! You rated this title %d/10.", req.Score)})
 }
 
-// 6. POST & GET /api/sessions: Manage Active Sessions (Enforces BR-02 Concurrency Limit)
+// 7. POST /api/sessions/start: Starts active stream (Enforces BR-02 Concurrency Limit & Suspended status)
 func startSessionHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
@@ -552,16 +825,25 @@ func startSessionHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 1. Verify stream cap from subscription_tier (BR-02)
+	// 1. Check account billing status
+	var billingStatus string
 	var maxStreams int
 	err := db.QueryRow(`
-		SELECT st.max_concurrent_streams
+		SELECT a.billing_status, st.max_concurrent_streams
 		FROM account a
 		JOIN subscription_tier st ON a.current_tier_id = st.tier_id
 		WHERE a.account_id = ?
-	`, req.AccountID).Scan(&maxStreams)
+	`, req.AccountID).Scan(&billingStatus, &maxStreams)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "Account or tier not found")
+		return
+	}
+
+	if billingStatus == "SUSPENDED" {
+		writeError(w, http.StatusPaymentRequired, "Account is SUSPENDED due to past due billing. Please pay your bill in 'Account Management' to resume streaming.")
+		return
+	} else if billingStatus == "CANCELLED" {
+		writeError(w, http.StatusPaymentRequired, "Subscription is CANCELLED. Please reactivate your plan to stream.")
 		return
 	}
 
@@ -579,7 +861,7 @@ func startSessionHandler(w http.ResponseWriter, r *http.Request) {
 
 	if activeCount >= maxStreams {
 		writeError(w, http.StatusConflict, fmt.Sprintf(
-			"Stream limit exceeded: Current tier allows %d concurrent streams (BR-02)", maxStreams,
+			"Stream limit exceeded: Current tier allows %d concurrent streams (BR-02). Please stop an existing stream to continue.", maxStreams,
 		))
 		return
 	}
@@ -606,18 +888,98 @@ func startSessionHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 4. Automatically record/update watch history for this title so rating is enabled
+	if req.TitleID != "" {
+		var mediaUnitID string
+		_ = db.QueryRow(`
+			SELECT media_unit_id FROM movie_title WHERE title_id = ?
+			UNION
+			SELECT ep.media_unit_id FROM episode ep JOIN season sn ON ep.season_id = sn.season_id WHERE sn.series_id = ? LIMIT 1
+		`, req.TitleID, req.TitleID).Scan(&mediaUnitID)
+
+		if mediaUnitID != "" {
+			_, _ = db.Exec(`
+				INSERT INTO watch_history (profile_id, media_unit_id, watched_at, playback_stop_seconds, is_completed)
+				VALUES (?, ?, NOW(), 120, FALSE)
+				ON DUPLICATE KEY UPDATE watched_at = NOW(), playback_stop_seconds = playback_stop_seconds + 120;
+			`, req.ProfileID, mediaUnitID)
+		}
+	}
+
 	writeJSON(w, http.StatusCreated, APIResponse{
 		Success: true,
-		Message: "Streaming session active",
-		Data:    map[string]string{"session_id": sessionID},
+		Message: fmt.Sprintf("Streaming session active! (Streams in use: %d/%d)", activeCount+1, maxStreams),
+		Data: map[string]any{
+			"session_id":     sessionID,
+			"active_streams": activeCount + 1,
+			"max_streams":    maxStreams,
+		},
 	})
+}
+
+// 8. POST /api/sessions/stop: Stops / terminates an active streaming session
+func stopSessionHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	var req StopSessionRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "Invalid JSON")
+		return
+	}
+
+	res, err := db.Exec("UPDATE active_session SET session_status = 'EXPIRED' WHERE session_id = ?", req.SessionID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	rowsAff, _ := res.RowsAffected()
+	if rowsAff == 0 {
+		writeError(w, http.StatusNotFound, "Session not found or already ended")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, APIResponse{Success: true, Message: "Streaming session ended. Stream slot released!"})
+}
+
+// 9. POST /api/sessions/stop-all: Stop all active streams for an account
+func stopAllSessionsHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	var req AccountActionRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "Invalid JSON")
+		return
+	}
+
+	_, err := db.Exec("UPDATE active_session SET session_status = 'EXPIRED' WHERE account_id = ? AND session_status = 'ACTIVE'", req.AccountID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, APIResponse{Success: true, Message: "All active streaming sessions released successfully."})
 }
 
 // GET /api/sessions: List active sessions
 func listSessionsHandler(w http.ResponseWriter, r *http.Request) {
 	accountIDStr := r.URL.Query().Get("account_id")
 	query := `
-		SELECT s.session_id, s.account_id, s.prof_id, p.profile_name, s.ip_address, s.device_fingerprint, s.started_at, s.session_status
+		SELECT 
+			s.session_id, 
+			s.account_id, 
+			s.prof_id, 
+			p.profile_name, 
+			s.ip_address, 
+			s.device_fingerprint, 
+			DATE_FORMAT(s.started_at, '%Y-%m-%d %H:%i:%s') AS started_at, 
+			s.session_status
 		FROM active_session s
 		JOIN profile p ON s.prof_id = p.profile_id
 		WHERE s.session_status = 'ACTIVE'
@@ -663,7 +1025,7 @@ func listSessionsHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, APIResponse{Success: true, Count: len(sessions), Data: sessions})
 }
 
-// 7. POST /api/history/progress: Log Playback Checkpoint (Composite Key History)
+// 10. POST /api/history/progress: Log Playback Checkpoint
 func historyProgressHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
@@ -676,7 +1038,6 @@ func historyProgressHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Determine media duration to calculate completion flag (>= 90%)
 	var totalSeconds int
 	err := db.QueryRow("SELECT duration_seconds FROM streamable_media_unit WHERE media_unit_id = ?", req.MediaUnitID).Scan(&totalSeconds)
 	if err != nil {
@@ -689,6 +1050,7 @@ func historyProgressHandler(w http.ResponseWriter, r *http.Request) {
 	query := `
 		INSERT INTO watch_history (profile_id, media_unit_id, watched_at, playback_stop_seconds, is_completed)
 		VALUES (?, ?, NOW(), ?, ?)
+		ON DUPLICATE KEY UPDATE watched_at = NOW(), playback_stop_seconds = VALUES(playback_stop_seconds), is_completed = VALUES(is_completed);
 	`
 	_, err = db.Exec(query, req.ProfileID, req.MediaUnitID, req.PlaybackStopSeconds, isCompleted)
 	if err != nil {
@@ -740,7 +1102,6 @@ func main() {
 	}
 	defer db.Close()
 
-	// Connection Pool Settings
 	db.SetMaxOpenConns(25)
 	db.SetMaxIdleConns(10)
 	db.SetConnMaxLifetime(5 * time.Minute)
@@ -751,7 +1112,6 @@ func main() {
 		log.Println("Connected to MySQL 'mininetflix' successfully.")
 	}
 
-	// Register HTTP Routes
 	mux := http.NewServeMux()
 
 	// Web UI & Static assets
@@ -765,11 +1125,25 @@ func main() {
 	// Business REST API Routes
 	mux.HandleFunc("/api/catalog", catalogHandler)
 	mux.HandleFunc("/api/movies", createMovieHandler)
+
+	// Profile & Account Routes
 	mux.HandleFunc("/api/profiles", profilesHandler)
+	mux.HandleFunc("/api/accounts", accountsHandler)
+	mux.HandleFunc("/api/accounts/tier", updateAccountTierHandler)
+	mux.HandleFunc("/api/accounts/pay", payAccountBillHandler)
+	mux.HandleFunc("/api/accounts/cancel", cancelAccountHandler)
+
+	// Watchlist & Ratings
 	mux.HandleFunc("/api/watchlist", watchlistHandler)
 	mux.HandleFunc("/api/ratings", ratingsHandler)
+
+	// Sessions & Streams
 	mux.HandleFunc("/api/sessions/start", startSessionHandler)
+	mux.HandleFunc("/api/sessions/stop", stopSessionHandler)
+	mux.HandleFunc("/api/sessions/stop-all", stopAllSessionsHandler)
 	mux.HandleFunc("/api/sessions", listSessionsHandler)
+
+	// Playback History
 	mux.HandleFunc("/api/history/progress", historyProgressHandler)
 
 	handler := corsMiddleware(mux)

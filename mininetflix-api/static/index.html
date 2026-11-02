@@ -16,10 +16,6 @@
       --success: #46d369;
       --warning: #f5a623;
       --danger: #e50914;
-      --tier-premium: #d4af37;
-      --tier-standard: #4a90e2;
-      --tier-basic: #8e44ad;
-      --tier-free: #7f8c8d;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -30,7 +26,6 @@
       line-height: 1.5;
     }
 
-    /* Header */
     header {
       background: linear-gradient(180deg, rgba(0,0,0,0.85) 0%, rgba(20,20,20,0) 100%), #141414;
       border-bottom: 1px solid #282828;
@@ -65,7 +60,7 @@
     .header-actions {
       display: flex;
       align-items: center;
-      gap: 18px;
+      gap: 14px;
     }
 
     .status-badge {
@@ -87,7 +82,19 @@
       box-shadow: 0 0 8px var(--success);
     }
 
-    /* Active Profile Bar */
+    .stream-counter-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      background: #252525;
+      color: #fff;
+      border: 1px solid #444;
+      padding: 6px 12px;
+      border-radius: 20px;
+      cursor: pointer;
+    }
+
     .profile-bar {
       background: #1a1a1a;
       border-bottom: 1px solid #2a2a2a;
@@ -124,8 +131,9 @@
     .current-profile-info {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
       font-size: 13px;
+      flex-wrap: wrap;
     }
     .badge {
       padding: 4px 10px;
@@ -141,36 +149,36 @@
     .badge-tier-3 { background: #5c4308; color: #f6e05e; border: 1px solid #b7791f; }
     .badge-kids { background: #274029; color: #68d391; border: 1px solid #2f855a; }
     .badge-adult { background: #333; color: #ccc; }
+    .badge-status-active { background: #1b4d24; color: #75f08a; border: 1px solid #287a38; }
+    .badge-status-suspended { background: #5a3c05; color: #ffbe4a; border: 1px solid #94640c; }
+    .badge-status-cancelled { background: #4d1b1b; color: #f07575; border: 1px solid #7a2828; }
 
-    /* Main Container */
     main {
       padding: 24px 32px 64px;
       max-width: 1400px;
       margin: 0 auto;
     }
 
-    /* Tabs */
     .tabs {
       display: flex;
       gap: 8px;
       border-bottom: 2px solid #282828;
       margin-bottom: 24px;
+      flex-wrap: wrap;
     }
     .tab-btn {
       background: transparent;
       color: var(--text-muted);
       border: none;
-      padding: 12px 20px;
-      font-size: 15px;
+      padding: 12px 18px;
+      font-size: 14px;
       font-weight: 600;
       cursor: pointer;
       position: relative;
       transition: color 0.2s;
     }
     .tab-btn:hover { color: #fff; }
-    .tab-btn.active {
-      color: #fff;
-    }
+    .tab-btn.active { color: #fff; }
     .tab-btn.active::after {
       content: "";
       position: absolute;
@@ -184,7 +192,6 @@
     .tab-pane { display: none; }
     .tab-pane.active { display: block; }
 
-    /* Catalog Controls */
     .catalog-controls {
       display: flex;
       justify-content: space-between;
@@ -220,14 +227,13 @@
       padding: 8px 16px;
       border-radius: 20px;
       font-size: 14px;
-      width: 260px;
+      width: 280px;
     }
     .search-input:focus {
       outline: none;
       border-color: var(--primary);
     }
 
-    /* Grid Layout */
     .catalog-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -257,7 +263,7 @@
       margin-bottom: 8px;
     }
     .card-title {
-      font-size: 17px;
+      font-size: 16px;
       font-weight: 700;
       color: #fff;
       line-height: 1.3;
@@ -273,11 +279,12 @@
 
     .card-meta {
       display: flex;
-      gap: 10px;
+      gap: 8px;
       font-size: 12px;
       color: var(--text-muted);
       margin-bottom: 12px;
       flex-wrap: wrap;
+      align-items: center;
     }
 
     .card-synopsis {
@@ -293,7 +300,7 @@
 
     .card-actions {
       display: flex;
-      gap: 8px;
+      gap: 6px;
       margin-top: auto;
     }
     .btn {
@@ -305,22 +312,22 @@
       cursor: pointer;
       transition: background 0.2s;
     }
-    .btn-primary {
-      background: var(--primary);
-      color: #fff;
-      flex: 1;
-    }
+    .btn-primary { background: var(--primary); color: #fff; flex: 1; }
     .btn-primary:hover { background: var(--primary-hover); }
-    .btn-secondary {
-      background: #333;
-      color: #eee;
-    }
+    .btn-secondary { background: #333; color: #eee; }
     .btn-secondary:hover { background: #444; }
+    .btn-success { background: #27ae60; color: #fff; }
+    .btn-warning { background: #f39c12; color: #fff; }
+    .btn-danger { background: #c0392b; color: #fff; }
 
-    /* BR Verification Grid */
+    .btn-in-watchlist {
+      background: #8e44ad;
+      color: #fff;
+    }
+
     .br-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
       gap: 20px;
     }
     .br-card {
@@ -341,7 +348,7 @@
       margin-bottom: 10px;
     }
     .br-title {
-      font-size: 18px;
+      font-size: 17px;
       font-weight: 700;
       margin-bottom: 8px;
     }
@@ -359,13 +366,12 @@
       border: 1px solid #333;
       font-family: monospace;
       font-size: 12px;
-      max-height: 150px;
+      max-height: 180px;
       overflow-y: auto;
       white-space: pre-wrap;
       display: none;
     }
 
-    /* Modal / Toast */
     .toast {
       position: fixed;
       bottom: 24px;
@@ -375,13 +381,13 @@
       color: #fff;
       padding: 14px 20px;
       border-radius: 4px;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.6);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.8);
       font-size: 14px;
       z-index: 1000;
       display: none;
+      max-width: 400px;
     }
 
-    /* Documentation Table */
     table.data-table {
       width: 100%;
       border-collapse: collapse;
@@ -394,20 +400,52 @@
       padding: 12px 16px;
       text-align: left;
       border-bottom: 1px solid #333;
-      font-size: 14px;
-    }
-    table.data-table th {
-      background: #252525;
-      font-weight: 700;
-    }
-    code {
-      background: #2a2a2a;
-      padding: 2px 6px;
-      border-radius: 4px;
-      font-family: monospace;
       font-size: 13px;
-      color: #f6e05e;
     }
+    table.data-table th { background: #252525; font-weight: 700; }
+
+    /* Modal */
+    .modal-backdrop {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.7);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 200;
+    }
+    .modal-box {
+      background: #1e1e1e;
+      border: 1px solid #444;
+      border-radius: 8px;
+      padding: 24px;
+      width: 90%;
+      max-width: 550px;
+      max-height: 85vh;
+      overflow-y: auto;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+    .form-group label {
+      display: block;
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+    .form-control {
+      width: 100%;
+      background: #2b2b2b;
+      border: 1px solid #444;
+      color: #fff;
+      padding: 8px 12px;
+      border-radius: 4px;
+      font-size: 14px;
+      outline: none;
+    }
+    .form-control:focus { border-color: var(--primary); }
   </style>
 </head>
 <body>
@@ -419,6 +457,13 @@
       <div class="brand-subtitle">Database Evaluation Portal &bull; PTIT HCMC</div>
     </div>
     <div class="header-actions">
+      <!-- Active Streams indicator with Stop Streams capability -->
+      <div class="stream-counter-badge" onclick="openStreamsModal()" title="Click to manage and stop active streams">
+        <span>🎬 Streams:</span>
+        <strong id="active-stream-count">0 / 0</strong>
+        <span style="color:var(--primary); font-size:11px;">[Manage]</span>
+      </div>
+
       <div class="status-badge">
         <span class="status-dot"></span>
         <span id="backend-status">Connected to DB</span>
@@ -444,8 +489,9 @@
     <!-- Navigation Tabs -->
     <div class="tabs">
       <button class="tab-btn active" onclick="switchTab('catalog', this)">🎬 Browse Catalog</button>
+      <button class="tab-btn" onclick="switchTab('watchlist', this)">⭐ My Watchlist (<span id="watchlist-count">0</span>)</button>
+      <button class="tab-btn" onclick="switchTab('account-mgmt', this)">💳 Account & Billing</button>
       <button class="tab-btn" onclick="switchTab('br-tests', this)">🧪 Business Rules Verification</button>
-      <button class="tab-btn" onclick="switchTab('watchlist', this)">⭐ My Watchlist</button>
       <button class="tab-btn" onclick="switchTab('data-info', this)">📊 Dataset & Engineering Notes</button>
       <button class="tab-btn" onclick="switchTab('api-docs', this)">📑 REST API Reference</button>
     </div>
@@ -458,7 +504,7 @@
           <button class="filter-btn" onclick="setCatalogType('Movie')">Movies Only</button>
           <button class="filter-btn" onclick="setCatalogType('Series')">TV Series Only</button>
         </div>
-        <input type="text" id="catalog-search" class="search-input" placeholder="Search titles..." onkeyup="debounceSearch()">
+        <input type="text" id="catalog-search" class="search-input" placeholder="Search titles (e.g. Space, Cinderella)..." oninput="onSearchInput()">
       </div>
 
       <div id="catalog-grid" class="catalog-grid">
@@ -466,7 +512,38 @@
       </div>
     </div>
 
-    <!-- TAB 2: BUSINESS RULES VERIFICATION -->
+    <!-- TAB 2: WATCHLIST -->
+    <div id="tab-watchlist" class="tab-pane">
+      <h3 style="margin-bottom: 14px;">Phim đã lưu vào danh sách theo dõi của Profile hiện tại:</h3>
+      <div id="watchlist-grid" class="catalog-grid"></div>
+    </div>
+
+    <!-- TAB 3: ACCOUNT & BILLING MANAGEMENT -->
+    <div id="tab-account-mgmt" class="tab-pane">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
+        <div>
+          <h2>Quản lý Tài khoản & Dịch vụ Thanh toán (Billing)</h2>
+          <p style="color:var(--text-muted); font-size:13px;">Nâng cấp/hạ gói, thanh toán cước hàng tháng, tạo tài khoản mới và tạo thêm profile.</p>
+        </div>
+        <button class="btn btn-primary" onclick="openNewAccountModal()">+ Tạo Tài khoản Mới</button>
+      </div>
+
+      <!-- Account Status Explanations -->
+      <div class="br-card" style="margin-bottom: 20px; background:#222; border-left:4px solid var(--warning);">
+        <h4 style="margin-bottom:6px;">Giải thích trạng thái Tài khoản (Billing Status):</h4>
+        <ul style="font-size:13px; color:#ccc; margin-left:20px; line-height:1.6;">
+          <li><span class="badge badge-status-active">ACTIVE</span>: Tài khoản đang hoạt động bình thường, thanh toán cước đầy đủ.</li>
+          <li><span class="badge badge-status-suspended">SUSPENDED</span>: Tài khoản bị <strong>tạm ngưng phát phim</strong> do quá hạn thanh toán hóa đơn. Nhấn <strong>"Pay Bill / Nộp cước"</strong> để kích hoạt lại ngay lập tức!</li>
+          <li><span class="badge badge-status-cancelled">CANCELLED</span>: Tài khoản đã bị người dùng hủy dịch vụ.</li>
+        </ul>
+      </div>
+
+      <div id="accounts-table-container">
+        <!-- Rendered Accounts Table -->
+      </div>
+    </div>
+
+    <!-- TAB 4: BUSINESS RULES VERIFICATION -->
     <div id="tab-br-tests" class="tab-pane">
       <p style="color: var(--text-muted); margin-bottom: 20px;">
         Giảng viên có thể nhấn trực tiếp vào các nút kiểm thử dưới đây để kiểm tra tự động các ràng buộc toàn vẹn & quy tắc nghiệp vụ cốt lõi (BR-01 đến BR-05).
@@ -478,7 +555,7 @@
           <span class="br-badge">BR-01</span>
           <h3 class="br-title">Subscription Tier Access</h3>
           <p class="br-desc">
-            Quy định: Profile chỉ được xem phim có cấp gói <code>minimum_tier_id &le; account.current_tier_id</code>.
+            Profile chỉ được xem phim có cấp gói <code>minimum_tier_id &le; account.current_tier_id</code>.
           </p>
           <button class="btn btn-primary" onclick="testBR01()">Chạy Test BR-01 (David Tier 0 vs Tier 3)</button>
           <div id="res-br01" class="br-result-box"></div>
@@ -489,7 +566,7 @@
           <span class="br-badge">BR-02</span>
           <h3 class="br-title">Concurrent Streams Limit</h3>
           <p class="br-desc">
-            Quy định: Số lượng stream đồng thời không được vượt quá <code>max_concurrent_streams</code> của gói (Bob Standard cho phép tối đa 2 streams).
+            Số lượng stream đồng thời không được vượt quá <code>max_concurrent_streams</code> của gói (Bob Standard tối đa 2 streams).
           </p>
           <button class="btn btn-primary" onclick="testBR02()">Chạy Test BR-02 (Vượt ngưỡng 2 Streams)</button>
           <div id="res-br02" class="br-result-box"></div>
@@ -500,9 +577,9 @@
           <span class="br-badge">BR-03</span>
           <h3 class="br-title">Profile Data Isolation</h3>
           <p class="br-desc">
-            Quy định: Watchlist, Rating và History của các profile độc lập hoàn toàn, không bị rò rỉ dữ liệu giữa các profile trong cùng một account.
+            Watchlist, Rating và History của các profile độc lập hoàn toàn, không bị rò rỉ dữ liệu giữa các profile.
           </p>
-          <button class="btn btn-primary" onclick="testBR03()">Chạy Test BR-03 (So sánh Profile 1 & 2)</button>
+          <button class="btn btn-primary" onclick="testBR03()">Chạy Test BR-03 (So sánh Profile 1 & 4)</button>
           <div id="res-br03" class="br-result-box"></div>
         </div>
 
@@ -511,7 +588,7 @@
           <span class="br-badge">BR-04</span>
           <h3 class="br-title">Kids Profile Restrictions</h3>
           <p class="br-desc">
-            Quy định: Profile trẻ em (<code>is_kids_profile = true</code>) bị chặn triệt để các nội dung phân loại R và NC-17.
+            Profile trẻ em (<code>is_kids_profile = true</code>) bị chặn triệt để các nội dung phân loại R và NC-17.
           </p>
           <button class="btn btn-primary" onclick="testBR04()">Chạy Test BR-04 (Kiểm tra Alice Kids)</button>
           <div id="res-br04" class="br-result-box"></div>
@@ -522,7 +599,7 @@
           <span class="br-badge">BR-05</span>
           <h3 class="br-title">Profile Limit (1 &le; N &le; 5)</h3>
           <p class="br-desc">
-            Quy định: Mỗi tài khoản chỉ được phép tạo tối đa 5 profile. Tạo profile thứ 6 sẽ kích hoạt lỗi <code>409 Conflict</code>.
+            Mỗi tài khoản chỉ được phép tạo tối đa 5 profile. Tạo profile thứ 6 sẽ kích hoạt lỗi <code>409 Conflict</code>.
           </p>
           <button class="btn btn-primary" onclick="testBR05()">Chạy Test BR-05 (Thử tạo Profile thứ 6)</button>
           <div id="res-br05" class="br-result-box"></div>
@@ -530,13 +607,7 @@
       </div>
     </div>
 
-    <!-- TAB 3: WATCHLIST -->
-    <div id="tab-watchlist" class="tab-pane">
-      <h3 style="margin-bottom: 14px;">Danh sách phim đã lưu (Watchlist) của Profile hiện tại:</h3>
-      <div id="watchlist-grid" class="catalog-grid"></div>
-    </div>
-
-    <!-- TAB 4: DATASET & NOTES -->
+    <!-- TAB 5: DATASET & NOTES -->
     <div id="tab-data-info" class="tab-pane">
       <div class="br-card" style="margin-bottom: 24px;">
         <h2 style="margin-bottom: 12px; color: var(--primary);">Nguồn dữ liệu & Quá trình hiệu chỉnh đồng bộ</h2>
@@ -547,7 +618,7 @@
           </a>.
         </p>
         <p style="color: var(--text-muted); line-height: 1.6; margin-bottom: 16px;">
-          Để bảo toàn tính chuẩn hóa 100% của <code>schema.sql</code> và tài liệu báo cáo học phần mà không phá vỡ mô hình quan hệ, nhóm đã thực hiện quy trình ETL/Data Mapping như sau:
+          Để bảo toàn tính chuẩn hóa 100% của <code>schema.sql</code> và tài liệu báo cáo học phần, nhóm đã thực hiện quy trình ETL/Data Mapping như sau:
         </p>
 
         <table class="data-table">
@@ -568,49 +639,40 @@
               <td><code>rating</code> (TV-MA, TV-14, TV-PG, TV-Y...)</td>
               <td><code>catalog_title.maturity_rating</code></td>
               <td>
-                Chuẩn hóa các mã truyền hình về hệ xếp hạng tương đương:
-                <br>&bull; <code>TV-MA</code> &rarr; <code>R</code> (Dành cho người lớn)
-                <br>&bull; <code>TV-14</code> &rarr; <code>PG-13</code> (Khán giả trên 14 tuổi)
-                <br>&bull; <code>TV-PG</code> &rarr; <code>PG</code> (Cần hướng dẫn phụ huynh)
-                <br>&bull; <code>TV-Y, TV-Y7, TV-G</code> &rarr; <code>G</code> (Thiếu nhi / Gia đình)
+                Chuẩn hóa các mã truyền hình sang mã tương đương:
+                <br>&bull; <code>TV-MA</code> &rarr; <code>R</code>
+                <br>&bull; <code>TV-14</code> &rarr; <code>PG-13</code>
+                <br>&bull; <code>TV-PG</code> &rarr; <code>PG</code>
+                <br>&bull; <code>TV-Y, TV-Y7, TV-G</code> &rarr; <code>G</code>
               </td>
             </tr>
             <tr>
               <td><code>duration</code> ("90 min", "2 Seasons")</td>
               <td><code>streamable_media_unit.duration_seconds</code> &amp; <code>tv_series.total_seasons</code></td>
               <td>
-                Tách đơn vị:
-                <br>&bull; Phim lẻ: đổi số phút sang giây (<code>min * 60</code>).
-                <br>&bull; Phim bộ: tách số Season lưu vào <code>tv_series</code>, tự động phân rã thành các Season và Episode độc lập.
+                &bull; Phim lẻ: đổi số phút sang giây (<code>min * 60</code>).
+                <br>&bull; Phim bộ: tách số Season lưu vào <code>tv_series</code>, tự động phân rã các bảng con <code>season</code> và <code>episode</code>.
               </td>
             </tr>
             <tr>
               <td><em>(Chưa có trong CSV)</em></td>
               <td><code>subscription_tier</code> &amp; <code>minimum_tier_id</code></td>
-              <td>
-                Khởi tạo 4 gói cước chuẩn (Free, Basic, Standard, Premium) và gán <code>minimum_tier_id</code> (0 đến 3) để phục vụ kiểm thử phân quyền <strong>BR-01</strong>.
-              </td>
+              <td>Khởi tạo 4 gói cước chuẩn (Free, Basic, Standard, Premium) và gán <code>minimum_tier_id</code> (0 đến 3) để phục vụ kiểm thử <strong>BR-01</strong>.</td>
             </tr>
             <tr>
               <td><em>(Chưa có trong CSV)</em></td>
               <td><code>account</code>, <code>profile</code>, <code>active_session</code></td>
-              <td>
-                Khởi tạo hệ thống User thực tế với các tài khoản sinh viên PTIT đại diện cho từng hạng gói để thầy kiểm thử tức thì.
-              </td>
+              <td>Khởi tạo hệ thống User thực tế với các tài khoản sinh viên PTIT đại diện cho từng hạng gói để thầy kiểm thử.</td>
             </tr>
           </tbody>
         </table>
       </div>
     </div>
 
-    <!-- TAB 5: API REFERENCE -->
+    <!-- TAB 6: API REFERENCE -->
     <div id="tab-api-docs" class="tab-pane">
       <div class="br-card">
         <h2 style="margin-bottom: 12px;">Mini-Netflix REST API Endpoints</h2>
-        <p style="color: var(--text-muted); margin-bottom: 16px;">
-          Tất cả các endpoint đều trả về định dạng chuẩn <code>application/json</code>.
-        </p>
-
         <table class="data-table">
           <thead>
             <tr>
@@ -624,62 +686,123 @@
             <tr>
               <td><span class="badge" style="background:#2b6cb0; color:#fff;">GET</span></td>
               <td><code>/api/catalog</code></td>
-              <td>Duyệt danh mục phim (thực thi BR-01 &amp; BR-04)</td>
+              <td>Duyệt danh mục phim (áp dụng BR-01 &amp; BR-04)</td>
               <td><code>profile_id</code>, <code>type</code>, <code>search</code></td>
             </tr>
             <tr>
               <td><span class="badge" style="background:#27ae60; color:#fff;">POST</span></td>
-              <td><code>/api/movies</code></td>
-              <td>Đăng ký phim mới qua mô hình EER Subclass</td>
-              <td>Body JSON (title, rating, tier, url...)</td>
+              <td><code>/api/sessions/start</code></td>
+              <td>Khởi tạo stream (kiểm tra stream cap BR-02 &amp; suspended)</td>
+              <td><code>account_id</code>, <code>profile_id</code>, <code>title_id</code></td>
             </tr>
             <tr>
-              <td><span class="badge" style="background:#2b6cb0; color:#fff;">GET</span></td>
-              <td><code>/api/profiles</code></td>
-              <td>Liệt kê tất cả Profile &amp; Account Tiers</td>
-              <td>-</td>
-            </tr>
-            <tr>
-              <td><span class="badge" style="background:#27ae60; color:#fff;">POST</span></td>
-              <td><code>/api/profiles</code></td>
-              <td>Tạo Profile mới (kiểm soát BR-05 &le; 5 profiles)</td>
-              <td><code>account_id</code>, <code>profile_name</code>, <code>is_kids</code></td>
+              <td><span class="badge" style="background:#c0392b; color:#fff;">POST</span></td>
+              <td><code>/api/sessions/stop</code></td>
+              <td>Kết thúc phiên stream, giải phóng slot stream</td>
+              <td><code>session_id</code></td>
             </tr>
             <tr>
               <td><span class="badge" style="background:#2b6cb0; color:#fff;">GET</span> / <span class="badge" style="background:#27ae60; color:#fff;">POST</span></td>
               <td><code>/api/watchlist</code></td>
-              <td>Xem hoặc Thêm phim vào Watchlist cá nhân (BR-03)</td>
+              <td>Xem hoặc Toggle (thêm/xóa) phim trong Watchlist</td>
               <td><code>profile_id</code>, <code>title_id</code></td>
             </tr>
             <tr>
               <td><span class="badge" style="background:#27ae60; color:#fff;">POST</span></td>
               <td><code>/api/ratings</code></td>
-              <td>Đánh giá phim điểm từ 1 đến 10</td>
+              <td>Đánh giá phim (bắt buộc đã xem phim trước đó)</td>
               <td><code>profile_id</code>, <code>title_id</code>, <code>score</code></td>
             </tr>
             <tr>
-              <td><span class="badge" style="background:#27ae60; color:#fff;">POST</span></td>
-              <td><code>/api/sessions/start</code></td>
-              <td>Khởi tạo phiên xem phim trực tuyến (thực thi BR-02)</td>
-              <td><code>account_id</code>, <code>profile_id</code>, <code>device_fingerprint</code></td>
+              <td><span class="badge" style="background:#2b6cb0; color:#fff;">GET</span> / <span class="badge" style="background:#27ae60; color:#fff;">POST</span></td>
+              <td><code>/api/accounts</code></td>
+              <td>Xem danh sách tài khoản hoặc tạo tài khoản mới</td>
+              <td><code>email</code>, <code>tier_id</code></td>
             </tr>
             <tr>
               <td><span class="badge" style="background:#27ae60; color:#fff;">POST</span></td>
-              <td><code>/api/history/progress</code></td>
-              <td>Cập nhật mốc thời gian xem phim &amp; cờ hoàn thành (&ge; 90%)</td>
-              <td><code>profile_id</code>, <code>media_unit_id</code>, <code>playback_stop_seconds</code></td>
+              <td><code>/api/accounts/tier</code></td>
+              <td>Nâng cấp / Hạ cấp gói cước tài khoản</td>
+              <td><code>account_id</code>, <code>tier_id</code></td>
             </tr>
             <tr>
-              <td><span class="badge" style="background:#2b6cb0; color:#fff;">GET</span></td>
-              <td><code>/health</code></td>
-              <td>Healthcheck &amp; Keep-alive ping (chống sleep)</td>
-              <td>-</td>
+              <td><span class="badge" style="background:#27ae60; color:#fff;">POST</span></td>
+              <td><code>/api/accounts/pay</code></td>
+              <td>Thanh toán cước gia hạn, mở khóa tài khoản SUSPENDED</td>
+              <td><code>account_id</code></td>
             </tr>
           </tbody>
         </table>
       </div>
     </div>
   </main>
+
+  <!-- Streams Management Modal -->
+  <div id="streams-modal" class="modal-backdrop">
+    <div class="modal-box">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <h3>Quản lý Luồng Stream Đang Hoạt Động</h3>
+        <button class="btn btn-secondary" onclick="closeStreamsModal()">✕</button>
+      </div>
+      <p style="font-size:13px; color:var(--text-muted); margin-bottom:14px;">
+        Các phiên stream đang chiếm slot của tài khoản hiện tại. Bạn có thể dừng bất kỳ stream nào để giải phóng slot (giảm số luồng).
+      </p>
+      <div id="active-sessions-list" style="margin-bottom:16px;"></div>
+      <div style="display:flex; justify-content:space-between;">
+        <button class="btn btn-danger" onclick="stopAllStreams()">🛑 Dừng Tất Cả Streams Của Tài Khoản</button>
+        <button class="btn btn-secondary" onclick="closeStreamsModal()">Đóng</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create Account Modal -->
+  <div id="new-account-modal" class="modal-backdrop">
+    <div class="modal-box">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <h3>Đăng Ký Tài Khoản Mới</h3>
+        <button class="btn btn-secondary" onclick="closeNewAccountModal()">✕</button>
+      </div>
+      <div class="form-group">
+        <label>Email Tài khoản:</label>
+        <input type="email" id="new-acc-email" class="form-control" placeholder="user@ptithcm.edu.vn">
+      </div>
+      <div class="form-group">
+        <label>Chọn Gói Cước Ban Đầu:</label>
+        <select id="new-acc-tier" class="form-control">
+          <option value="0">Free ($0.00 / tháng - 1 Stream, 480p)</option>
+          <option value="1">Basic ($9.99 / tháng - 1 Stream, 720p)</option>
+          <option value="2" selected>Standard ($15.49 / tháng - 2 Streams, 1080p)</option>
+          <option value="3">Premium ($19.99 / tháng - 4 Streams, 4K UHD)</option>
+        </select>
+      </div>
+      <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:20px;">
+        <button class="btn btn-secondary" onclick="closeNewAccountModal()">Hủy</button>
+        <button class="btn btn-primary" onclick="submitCreateAccount()">Tạo Tài Khoản</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create Profile Modal -->
+  <div id="new-profile-modal" class="modal-backdrop">
+    <div class="modal-box">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <h3>Tạo Profile Mới (BR-05: Tối đa 5 Profile)</h3>
+        <button class="btn btn-secondary" onclick="closeNewProfileModal()">✕</button>
+      </div>
+      <div class="form-group">
+        <label>Tên Profile:</label>
+        <input type="text" id="new-prof-name" class="form-control" placeholder="VD: Bố mẹ, Con cái...">
+      </div>
+      <div class="form-group" style="display:flex; align-items:center; gap:8px; margin-top:10px;">
+        <input type="checkbox" id="new-prof-kids" style="width:18px; height:18px;">
+        <label for="new-prof-kids" style="margin:0; cursor:pointer;">Đặt làm Kids Profile (Tự động lọc phim người lớn R/NC-17 theo BR-04)</label>
+      </div>
+      <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:20px;">
+        <button class="btn btn-secondary" onclick="closeNewProfileModal()">Hủy</button>
+        <button class="btn btn-primary" onclick="submitCreateProfile()">Tạo Profile</button>
+      </div>
+    </div>
+  </div>
 
   <div id="toast" class="toast"></div>
 
@@ -688,6 +811,7 @@
     let activeProfile = null;
     let currentTypeFilter = '';
     let searchTimeout = null;
+    let accountsList = [];
 
     const tierNames = ['Free', 'Basic', 'Standard', 'Premium'];
 
@@ -695,6 +819,7 @@
       await checkHealth();
       await loadProfiles();
       await loadCatalog();
+      await loadAccounts();
     }
 
     async function checkHealth() {
@@ -723,8 +848,13 @@
             opt.textContent = `${p.profile_name} (Acc ${p.account_id}: ${p.tier_name}${p.is_kids_profile ? ' - Kids' : ''})`;
             select.appendChild(opt);
           });
-          activeProfile = currentProfiles[0];
+          if (!activeProfile && currentProfiles.length > 0) {
+            activeProfile = currentProfiles[0];
+          } else if (activeProfile) {
+            activeProfile = currentProfiles.find(p => p.profile_id === activeProfile.profile_id) || currentProfiles[0];
+          }
           updateProfileStrip();
+          updateStreamCounter();
         }
       } catch (err) {
         console.error('Failed to load profiles:', err);
@@ -736,10 +866,9 @@
       const pid = parseInt(select.value);
       activeProfile = currentProfiles.find(p => p.profile_id === pid) || currentProfiles[0];
       updateProfileStrip();
+      updateStreamCounter();
       loadCatalog();
-      if (document.getElementById('tab-watchlist').classList.contains('active')) {
-        loadWatchlist();
-      }
+      loadWatchlist();
     }
 
     function updateProfileStrip() {
@@ -749,15 +878,35 @@
       const kidsBadge = activeProfile.is_kids_profile 
         ? `<span class="badge badge-kids">👶 Kids Mode (BR-04 Protected)</span>` 
         : `<span class="badge badge-adult">👤 Adult Profile</span>`;
+      
+      let statusBadge = `<span class="badge badge-status-active">ACTIVE</span>`;
+      if (activeProfile.billing_status === 'SUSPENDED') {
+        statusBadge = `<span class="badge badge-status-suspended">SUSPENDED (Quá hạn cước)</span>`;
+      } else if (activeProfile.billing_status === 'CANCELLED') {
+        statusBadge = `<span class="badge badge-status-cancelled">CANCELLED</span>`;
+      }
+
       const streamInfo = `<span style="color:#aaa;">Max Streams: <b>${activeProfile.max_streams}</b></span>`;
-      strip.innerHTML = `${tierBadge} ${kidsBadge} ${streamInfo}`;
+      const addProfBtn = `<button class="btn btn-secondary" style="padding:3px 8px; font-size:11px;" onclick="openNewProfileModal()">+ Profile</button>`;
+      
+      strip.innerHTML = `${statusBadge} ${tierBadge} ${kidsBadge} ${streamInfo} ${addProfBtn}`;
+    }
+
+    function updateStreamCounter() {
+      if (!activeProfile) return;
+      document.getElementById('active-stream-count').textContent = `${activeProfile.active_streams} / ${activeProfile.max_streams}`;
+    }
+
+    function onSearchInput() {
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(() => {
+        loadCatalog();
+      }, 250);
     }
 
     async function loadCatalog() {
       if (!activeProfile) return;
       const grid = document.getElementById('catalog-grid');
-      grid.innerHTML = '<div style="color:#888;">Loading catalog...</div>';
-
       const searchVal = document.getElementById('catalog-search').value.trim();
       let url = `/api/catalog?profile_id=${activeProfile.profile_id}`;
       if (currentTypeFilter) url += `&type=${currentTypeFilter}`;
@@ -768,7 +917,7 @@
         const json = await res.json();
         grid.innerHTML = '';
         if (!json.success || !json.data || json.data.length === 0) {
-          grid.innerHTML = '<div style="color:#888; grid-column: 1/-1; padding: 40px; text-align: center;">No content found matching filter/tier restrictions.</div>';
+          grid.innerHTML = '<div style="color:#888; grid-column: 1/-1; padding: 40px; text-align: center;">Không tìm thấy nội dung phù hợp với bộ lọc hoặc cấp gói của bạn.</div>';
           return;
         }
 
@@ -778,6 +927,9 @@
           const tierReq = tierNames[item.minimum_tier_id] || 'Free';
           const dur = item.duration_seconds ? `${Math.round(item.duration_seconds/60)} min` : '';
           const resText = item.video_resolution || '';
+
+          const watchlistBtnClass = item.in_watchlist ? 'btn btn-in-watchlist' : 'btn btn-secondary';
+          const watchlistBtnText = item.in_watchlist ? '✓ In List' : '+ List';
 
           card.innerHTML = `
             <div>
@@ -796,14 +948,14 @@
             </div>
             <div class="card-actions">
               <button class="btn btn-primary" onclick="startStream('${item.title_id}')">▶ Watch</button>
-              <button class="btn btn-secondary" onclick="addToWatchlist('${item.title_id}')">+ List</button>
-              <button class="btn btn-secondary" onclick="rateTitle('${item.title_id}')">⭐ Rate</button>
+              <button class="${watchlistBtnClass}" id="btn-wl-${item.title_id}" onclick="toggleWatchlist('${item.title_id}')">${watchlistBtnText}</button>
+              <button class="btn btn-secondary" onclick="rateTitle('${item.title_id}', ${item.has_watched})">⭐ Rate</button>
             </div>
           `;
           grid.appendChild(card);
         });
       } catch (err) {
-        grid.innerHTML = `<div style="color:var(--danger)">Error loading catalog: ${err.message}</div>`;
+        grid.innerHTML = `<div style="color:var(--danger)">Lỗi tải danh mục: ${err.message}</div>`;
       }
     }
 
@@ -816,21 +968,24 @@
           body: JSON.stringify({
             account_id: activeProfile.account_id,
             profile_id: activeProfile.profile_id,
+            title_id: titleId,
             device_fingerprint: 'browser-' + Math.random().toString(36).substring(7)
           })
         });
         const json = await res.json();
         if (json.success) {
-          showToast(`✅ Streaming session started! ID: ${json.data.session_id.substring(0,8)}...`);
+          showToast(`▶ ${json.message}`);
+          await loadProfiles();
+          loadCatalog();
         } else {
-          showToast(`❌ Cannot stream: ${json.message}`);
+          showToast(`❌ ${json.message}`);
         }
       } catch (err) {
-        showToast(`❌ Request error: ${err.message}`);
+        showToast(`❌ Lỗi kết nối: ${err.message}`);
       }
     }
 
-    async function addToWatchlist(titleId) {
+    async function toggleWatchlist(titleId) {
       if (!activeProfile) return;
       try {
         const res = await fetch('/api/watchlist', {
@@ -843,21 +998,36 @@
         });
         const json = await res.json();
         if (json.success) {
-          showToast('⭐ Added to Watchlist!');
+          showToast(json.message);
+          const btn = document.getElementById(`btn-wl-${titleId}`);
+          if (btn) {
+            if (json.data && json.data.in_watchlist) {
+              btn.className = 'btn btn-in-watchlist';
+              btn.textContent = '✓ In List';
+            } else {
+              btn.className = 'btn btn-secondary';
+              btn.textContent = '+ List';
+            }
+          }
+          loadWatchlist();
         } else {
-          showToast(`Notice: ${json.message}`);
+          showToast(`Lỗi: ${json.message}`);
         }
       } catch (err) {
-        showToast('Error: ' + err.message);
+        showToast('Lỗi: ' + err.message);
       }
     }
 
-    async function rateTitle(titleId) {
-      const score = prompt('Rate this title (1-10):', '9');
+    async function rateTitle(titleId, hasWatched) {
+      if (!hasWatched) {
+        alert('⚠️ Quy định nghiệp vụ: Bạn CHƯA XEM phim này! Vui lòng nhấn nút "▶ Watch" xem phim trước khi đánh giá.');
+        return;
+      }
+      const score = prompt('Chấm điểm phim này (thang điểm 1 đến 10):', '9');
       if (!score) return;
       const num = parseInt(score);
       if (isNaN(num) || num < 1 || num > 10) {
-        alert('Score must be between 1 and 10!');
+        alert('Điểm đánh giá phải từ 1 đến 10!');
         return;
       }
       try {
@@ -871,22 +1041,22 @@
           })
         });
         const json = await res.json();
-        showToast(json.success ? `Rated ${num}/10 successfully!` : json.message);
+        showToast(json.success ? json.message : json.message);
       } catch (err) {
-        showToast('Error: ' + err.message);
+        showToast('Lỗi: ' + err.message);
       }
     }
 
     async function loadWatchlist() {
       if (!activeProfile) return;
       const grid = document.getElementById('watchlist-grid');
-      grid.innerHTML = '<div style="color:#888;">Loading watchlist...</div>';
       try {
         const res = await fetch(`/api/watchlist?profile_id=${activeProfile.profile_id}`);
         const json = await res.json();
+        document.getElementById('watchlist-count').textContent = json.count || 0;
         grid.innerHTML = '';
         if (!json.success || !json.data || json.data.length === 0) {
-          grid.innerHTML = '<div style="color:#888; grid-column:1/-1;">No titles saved in this profile watchlist.</div>';
+          grid.innerHTML = '<div style="color:#888; grid-column:1/-1; padding:30px; text-align:center;">Chưa có phim nào trong danh sách theo dõi của profile này.</div>';
           return;
         }
         json.data.forEach(item => {
@@ -901,14 +1071,257 @@
               <div class="card-meta">
                 <span><b>${item.content_type}</b></span>
                 <span>&bull;</span>
-                <span>Added: ${new Date(item.added_at).toLocaleDateString()}</span>
+                <span style="color:#aaa;">Đã lưu: ${item.added_at}</span>
               </div>
+              <div class="card-synopsis">${item.synopsis || ''}</div>
+            </div>
+            <div class="card-actions">
+              <button class="btn btn-primary" onclick="startStream('${item.title_id}')">▶ Watch</button>
+              <button class="btn btn-danger" onclick="toggleWatchlist('${item.title_id}')">Xóa khỏi List</button>
             </div>
           `;
           grid.appendChild(card);
         });
       } catch (err) {
-        grid.innerHTML = `<div style="color:var(--danger)">Error: ${err.message}</div>`;
+        grid.innerHTML = `<div style="color:var(--danger)">Lỗi: ${err.message}</div>`;
+      }
+    }
+
+    // Account & Billing Management
+    async function loadAccounts() {
+      const container = document.getElementById('accounts-table-container');
+      try {
+        const res = await fetch('/api/accounts');
+        const json = await res.json();
+        if (json.success && json.data) {
+          accountsList = json.data;
+          let html = `
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Email</th>
+                  <th>Gói Cước & Giá</th>
+                  <th>Trạng Thái</th>
+                  <th>Hạn Nộp Cước</th>
+                  <th>Streams Đang Dùng</th>
+                  <th>Hành Động</th>
+                </tr>
+              </thead>
+              <tbody>
+          `;
+          json.data.forEach(acc => {
+            let statusPill = `<span class="badge badge-status-active">ACTIVE</span>`;
+            if (acc.billing_status === 'SUSPENDED') statusPill = `<span class="badge badge-status-suspended">SUSPENDED</span>`;
+            if (acc.billing_status === 'CANCELLED') statusPill = `<span class="badge badge-status-cancelled">CANCELLED</span>`;
+
+            let payBtn = '';
+            if (acc.billing_status === 'SUSPENDED') {
+              payBtn = `<button class="btn btn-success" style="padding:4px 8px; font-size:11px;" onclick="payBill(${acc.account_id})">💳 Nộp Cước Ngay</button>`;
+            } else if (acc.billing_status === 'ACTIVE') {
+              payBtn = `<button class="btn btn-secondary" style="padding:4px 8px; font-size:11px;" onclick="payBill(${acc.account_id})">Gia Hạn 30 Ngày</button>`;
+            }
+
+            html += `
+              <tr>
+                <td><b>#${acc.account_id}</b></td>
+                <td>${acc.email}</td>
+                <td>
+                  <select class="form-control" style="padding:3px 6px; font-size:12px; width:auto; display:inline;" onchange="changeTier(${acc.account_id}, this.value)">
+                    <option value="0" ${acc.tier_id === 0 ? 'selected' : ''}>Free ($0.00)</option>
+                    <option value="1" ${acc.tier_id === 1 ? 'selected' : ''}>Basic ($9.99)</option>
+                    <option value="2" ${acc.tier_id === 2 ? 'selected' : ''}>Standard ($15.49)</option>
+                    <option value="3" ${acc.tier_id === 3 ? 'selected' : ''}>Premium ($19.99)</option>
+                  </select>
+                </td>
+                <td>${statusPill}</td>
+                <td>${acc.next_billing_date}</td>
+                <td><strong>${acc.active_streams} / ${acc.max_streams}</strong></td>
+                <td>
+                  ${payBtn}
+                  ${acc.billing_status !== 'CANCELLED' ? `<button class="btn btn-danger" style="padding:4px 8px; font-size:11px; margin-left:4px;" onclick="cancelSubscription(${acc.account_id})">Hủy Gói</button>` : ''}
+                </td>
+              </tr>
+            `;
+          });
+          html += `</tbody></table>`;
+          container.innerHTML = html;
+        }
+      } catch (err) {
+        container.innerHTML = `<div style="color:var(--danger)">Lỗi: ${err.message}</div>`;
+      }
+    }
+
+    async function changeTier(accId, tierId) {
+      try {
+        const res = await fetch('/api/accounts/tier', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({account_id: parseInt(accId), tier_id: parseInt(tierId)})
+        });
+        const json = await res.json();
+        showToast(json.message);
+        await loadProfiles();
+        await loadAccounts();
+        loadCatalog();
+      } catch (err) {
+        showToast('Lỗi: ' + err.message);
+      }
+    }
+
+    async function payBill(accId) {
+      try {
+        const res = await fetch('/api/accounts/pay', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({account_id: parseInt(accId)})
+        });
+        const json = await res.json();
+        showToast(json.message);
+        await loadProfiles();
+        await loadAccounts();
+      } catch (err) {
+        showToast('Lỗi: ' + err.message);
+      }
+    }
+
+    async function cancelSubscription(accId) {
+      if (!confirm('Bạn có chắc chắn muốn hủy gói cước cho tài khoản này?')) return;
+      try {
+        const res = await fetch('/api/accounts/cancel', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({account_id: parseInt(accId)})
+        });
+        const json = await res.json();
+        showToast(json.message);
+        await loadProfiles();
+        await loadAccounts();
+      } catch (err) {
+        showToast('Lỗi: ' + err.message);
+      }
+    }
+
+    // Active Streams Modal & Control
+    async function openStreamsModal() {
+      if (!activeProfile) return;
+      document.getElementById('streams-modal').style.display = 'flex';
+      const container = document.getElementById('active-sessions-list');
+      container.innerHTML = '<div style="color:#aaa;">Đang tải danh sách stream...</div>';
+      try {
+        const res = await fetch(`/api/sessions?account_id=${activeProfile.account_id}`);
+        const json = await res.json();
+        container.innerHTML = '';
+        if (!json.success || !json.data || json.data.length === 0) {
+          container.innerHTML = '<div style="color:#888; padding:15px; text-align:center;">Hiện tài khoản này không có luồng stream nào đang chạy (0 streams in use).</div>';
+          return;
+        }
+        json.data.forEach(s => {
+          const item = document.createElement('div');
+          item.style = 'background:#282828; padding:10px 14px; border-radius:6px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;';
+          item.innerHTML = `
+            <div>
+              <div style="font-weight:bold; font-size:13px;">${s.profile_name} (Session: ${s.session_id.substring(0,8)}...)</div>
+              <div style="font-size:11px; color:#aaa;">Bắt đầu lúc: ${s.started_at} &bull; IP: ${s.ip_address}</div>
+            </div>
+            <button class="btn btn-danger" onclick="stopStream('${s.session_id}')">Dừng Stream Này</button>
+          `;
+          container.appendChild(item);
+        });
+      } catch (err) {
+        container.innerHTML = `<div style="color:var(--danger)">Lỗi: ${err.message}</div>`;
+      }
+    }
+
+    function closeStreamsModal() {
+      document.getElementById('streams-modal').style.display = 'none';
+    }
+
+    async function stopStream(sessionId) {
+      try {
+        const res = await fetch('/api/sessions/stop', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({session_id: sessionId})
+        });
+        const json = await res.json();
+        showToast(json.message);
+        await loadProfiles();
+        openStreamsModal();
+      } catch (err) {
+        showToast('Lỗi: ' + err.message);
+      }
+    }
+
+    async function stopAllStreams() {
+      if (!activeProfile) return;
+      try {
+        const res = await fetch('/api/sessions/stop-all', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({account_id: activeProfile.account_id})
+        });
+        const json = await res.json();
+        showToast(json.message);
+        await loadProfiles();
+        closeStreamsModal();
+      } catch (err) {
+        showToast('Lỗi: ' + err.message);
+      }
+    }
+
+    // Modal Create Account & Profile
+    function openNewAccountModal() { document.getElementById('new-account-modal').style.display = 'flex'; }
+    function closeNewAccountModal() { document.getElementById('new-account-modal').style.display = 'none'; }
+    
+    async function submitCreateAccount() {
+      const email = document.getElementById('new-acc-email').value.trim();
+      const tierId = parseInt(document.getElementById('new-acc-tier').value);
+      if (!email) { alert('Vui lòng nhập email!'); return; }
+      try {
+        const res = await fetch('/api/accounts', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({email: email, tier_id: tierId})
+        });
+        const json = await res.json();
+        showToast(json.message);
+        if (json.success) {
+          closeNewAccountModal();
+          await loadProfiles();
+          await loadAccounts();
+        }
+      } catch (err) {
+        showToast('Lỗi: ' + err.message);
+      }
+    }
+
+    function openNewProfileModal() { document.getElementById('new-profile-modal').style.display = 'flex'; }
+    function closeNewProfileModal() { document.getElementById('new-profile-modal').style.display = 'none'; }
+
+    async function submitCreateProfile() {
+      if (!activeProfile) return;
+      const name = document.getElementById('new-prof-name').value.trim();
+      const isKids = document.getElementById('new-prof-kids').checked;
+      if (!name) { alert('Vui lòng nhập tên profile!'); return; }
+      try {
+        const res = await fetch('/api/profiles', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            account_id: activeProfile.account_id,
+            profile_name: name,
+            is_kids_profile: isKids
+          })
+        });
+        const json = await res.json();
+        showToast(json.message);
+        if (json.success) {
+          closeNewProfileModal();
+          await loadProfiles();
+        }
+      } catch (err) {
+        showToast('Lỗi: ' + err.message);
       }
     }
 
@@ -918,7 +1331,6 @@
       box.style.display = 'block';
       box.textContent = 'Testing BR-01 (David - Free Tier 0 querying catalog)...';
 
-      // Profile 7 is David (Tier 0)
       const res = await fetch('/api/catalog?profile_id=7');
       const json = await res.json();
       const nonZeroTiers = json.data.filter(i => i.minimum_tier_id > 0);
@@ -939,7 +1351,6 @@
       box.style.display = 'block';
       box.textContent = 'Testing BR-02 (Spawning concurrent sessions on Bob - Max 2 streams)...';
 
-      // Bob: account_id = 2, max_streams = 2
       let out = '[BR-02 TEST RESULT]\n';
       for (let i = 1; i <= 3; i++) {
         const res = await fetch('/api/sessions/start', {
@@ -981,11 +1392,8 @@
       box.style.display = 'block';
       box.textContent = 'Testing BR-04 (Kids Profile Content Restriction)...';
 
-      // Profile 2 is Alice Junior (Kids)
       const resKids = await fetch('/api/catalog?profile_id=2');
       const jsonKids = await resKids.json();
-
-      // Check if any R or NC-17 in kids catalog
       const restricted = jsonKids.data.filter(i => i.maturity_rating === 'R' || i.maturity_rating === 'NC-17');
 
       let out = `[BR-04 TEST RESULT]\n`;
@@ -1034,6 +1442,7 @@
       const pane = document.getElementById('tab-' + name);
       if (pane) pane.classList.add('active');
       if (name === 'watchlist') loadWatchlist();
+      if (name === 'account-mgmt') loadAccounts();
     }
 
     function setCatalogType(t) {
@@ -1043,22 +1452,14 @@
       loadCatalog();
     }
 
-    function debounceSearch() {
-      clearTimeout(searchTimeout);
-      searchTimeout = setTimeout(() => {
-        loadCatalog();
-      }, 300);
-    }
-
     function showToast(msg) {
       const toast = document.getElementById('toast');
       toast.textContent = msg;
       toast.style.display = 'block';
-      setTimeout(() => { toast.style.display = 'none'; }, 3500);
+      setTimeout(() => { toast.style.display = 'none'; }, 4000);
     }
 
     window.onload = init;
   </script>
 </body>
 </html>
-
