@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"database/sql"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -75,6 +77,15 @@ type UpdatePlaybackRequest struct {
 	ProfileID           int    `json:"profile_id"`
 	MediaUnitID         string `json:"media_unit_id"`
 	PlaybackStopSeconds int    `json:"playback_stop_seconds"`
+}
+
+type CardRegistrationRequest struct {
+	AccountID      int    `json:"account_id"`
+	CardholderName string `json:"cardholder_name"`
+	CardNumber     string `json:"card_number"` // e.g., "4242424242424242"
+	ExpMonth       int    `json:"exp_month"`
+	ExpYear        int    `json:"exp_year"`
+	CVV            string `json:"cvv"`         // e.g., "123"
 }
 
 // ============================================================================
@@ -550,6 +561,62 @@ func historyProgressHandler(w http.ResponseWriter, r *http.Request) {
 		Success: true,
 		Message: "Playback checkpoint recorded",
 		Data:    map[string]any{"is_completed": isCompleted},
+	})
+}
+
+// 8. POST /api/cards: Register Credit Card (Tokenization & Vault Simulation)
+func registerCardHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req CardRegistrationRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid payload", http.StatusBadRequest)
+		return
+	}
+
+	// 1. Sanitize & extract safe display data
+	cleanNumber := strings.ReplaceAll(req.CardNumber, " ", "")
+	if len(cleanNumber) < 4 {
+		http.Error(w, "Invalid card length", http.StatusBadRequest)
+		return
+	}
+	lastFour := cleanNumber[len(cleanNumber)-4:]
+
+	// 2. Identify brand (simple mock check)
+	cardBrand := "UNKNOWN"
+	if strings.HasPrefix(cleanNumber, "4") {
+		cardBrand = "VISA"
+	} else if strings.HasPrefix(cleanNumber, "5") {
+		cardBrand = "MASTERCARD"
+	}
+
+	// 3. Mint a mock token to represent the gateway vault reference
+	tokenBytes := make([]byte, 16)
+	_, _ = rand.Read(tokenBytes)
+	mockToken := fmt.Sprintf("tok_mock_%s", hex.EncodeToString(tokenBytes))
+
+	// 4. Store ONLY safe fields in MySQL (Raw card number & CVV are discarded here)
+	query := `
+		INSERT INTO credit_card 
+		(account_id, cardholder_name, card_brand, last_four, exp_month, exp_year, payment_token) 
+		VALUES (?, ?, ?, ?, ?, ?, ?);
+	`
+	_, err := db.Exec(query, req.AccountID, req.CardholderName, cardBrand, lastFour, req.ExpMonth, req.ExpYear, mockToken)
+	if err != nil {
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"success":   true,
+		"message":   "Card tokenized successfully",
+		"brand":     cardBrand,
+		"last_four": lastFour,
+		"token":     mockToken,
 	})
 }
 

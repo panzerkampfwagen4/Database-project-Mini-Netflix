@@ -29,6 +29,38 @@ CREATE TABLE account (
     CONSTRAINT fk_account_pending_tier FOREIGN KEY (pending_tier_id) REFERENCES subscription_tier(tier_id)
 );
 
+-- 9. CREDIT CARD
+CREATE TABLE credit_card (
+    card_id INT AUTO_INCREMENT PRIMARY KEY,
+    account_id INT UNSIGNED NOT NULL,
+    cardholder_name VARCHAR(100) NOT NULL,
+    card_brand VARCHAR(20) NOT NULL,         -- 'VISA', 'MASTERCARD'
+    last_four CHAR(4) NOT NULL,               -- '4242'
+    exp_month TINYINT NOT NULL,               -- 12
+    exp_year SMALLINT NOT NULL,               -- 2028
+    payment_token VARCHAR(64) NOT NULL UNIQUE, -- 'tok_mock_9f83a8b2...'
+    is_default BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_card_account FOREIGN KEY (account_id)
+        REFERENCES account(account_id) ON DELETE CASCADE
+);
+
+-- 10. PAYMENT TRANSACTION
+CREATE TABLE payment_transaction (
+    transaction_id INT AUTO_INCREMENT PRIMARY KEY,
+    account_id INT UNSIGNED NOT NULL,
+    card_id INT NOT NULL,
+    amount DECIMAL(10, 2) NOT NULL,
+    currency CHAR(3) DEFAULT 'USD',
+    status ENUM('SUCCESS', 'FAILED', 'PENDING') NOT NULL,
+    gateway_reference VARCHAR(64) NOT NULL,   -- 'ch_mock_a89f21...'
+    transaction_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_tx_account FOREIGN KEY (account_id) 
+        REFERENCES account(account_id),
+    CONSTRAINT fk_tx_card FOREIGN KEY (card_id) 
+        REFERENCES credit_card(card_id)
+);
+
 -- 3. PROFILE
 CREATE TABLE profile (
     profile_id INT UNSIGNED NOT NULL AUTO_INCREMENT,
