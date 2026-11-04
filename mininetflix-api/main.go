@@ -2,8 +2,8 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"crypto/rand"
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -85,7 +85,7 @@ type CardRegistrationRequest struct {
 	CardNumber     string `json:"card_number"` // e.g., "4242424242424242"
 	ExpMonth       int    `json:"exp_month"`
 	ExpYear        int    `json:"exp_year"`
-	CVV            string `json:"cvv"`         // e.g., "123"
+	CVV            string `json:"cvv"` // e.g., "123"
 }
 
 // ============================================================================
@@ -168,7 +168,7 @@ func catalogHandler(w http.ResponseWriter, r *http.Request) {
 
 	// BR-04: Kids Profile exclusion
 	if isKids {
-		query += " AND ct.maturity_rating NOT IN ('R', 'NC-17') "
+		query += " AND ct.maturity_rating NOT IN ('R', 'NC-17', 'TV-MA') "
 	}
 
 	// Content Type filter ('Movie' / 'Series')
@@ -567,30 +567,32 @@ func historyProgressHandler(w http.ResponseWriter, r *http.Request) {
 // 8. POST /api/cards: Register Credit Card (Tokenization & Vault Simulation)
 func registerCardHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 
 	var req CardRegistrationRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid payload", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, "Invalid payload")
 		return
 	}
 
 	// 1. Sanitize & extract safe display data
 	cleanNumber := strings.ReplaceAll(req.CardNumber, " ", "")
 	if len(cleanNumber) < 4 {
-		http.Error(w, "Invalid card length", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, "Invalid card length")
 		return
 	}
 	lastFour := cleanNumber[len(cleanNumber)-4:]
 
 	// 2. Identify brand (simple mock check)
-	cardBrand := "UNKNOWN"
+	cardBrand := "VISA" // Fallback to a valid brand matching CHECK constraint
 	if strings.HasPrefix(cleanNumber, "4") {
 		cardBrand = "VISA"
 	} else if strings.HasPrefix(cleanNumber, "5") {
 		cardBrand = "MASTERCARD"
+	} else if strings.HasPrefix(cleanNumber, "3") {
+		cardBrand = "AMEX"
 	}
 
 	// 3. Mint a mock token to represent the gateway vault reference
@@ -606,17 +608,19 @@ func registerCardHandler(w http.ResponseWriter, r *http.Request) {
 	`
 	_, err := db.Exec(query, req.AccountID, req.CardholderName, cardBrand, lastFour, req.ExpMonth, req.ExpYear, mockToken)
 	if err != nil {
-		http.Error(w, "Database error", http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("Database error: %v", err))
 		return
 	}
 
-	w.WriteHeader(http.StatusCreated)
-	_ = json.NewEncoder(w).Encode(map[string]any{
-		"success":   true,
-		"message":   "Card tokenized successfully",
-		"brand":     cardBrand,
-		"last_four": lastFour,
-		"token":     mockToken,
+	// 5. Send single, formatted response using writeJSON
+	writeJSON(w, http.StatusCreated, APIResponse{
+		Success: true,
+		Message: "Card tokenized successfully",
+		Data: map[string]string{
+			"brand":     cardBrand,
+			"last_four": lastFour,
+			"token":     mockToken,
+		},
 	})
 }
 
@@ -626,8 +630,8 @@ func registerCardHandler(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	// Configure MySQL credentials (replace with your MySQL user/pass)
-	// dsn := "root:P@nzerkampf4@tcp(127.0.0.1:3306)/mininetflix?parseTime=true"
-	dsn := "root:your_mysql_password@tcp(127.0.0.1:3306)/mininetflix?parseTime=true"
+	dsn := "root:P@nzerkampf4@tcp(127.0.0.1:3306)/mini_netflix?parseTime=true"
+	//dsn := "root:your_mysql_password@tcp(127.0.0.1:3306)/_?parseTime=true"
 
 	var err error
 	db, err = sql.Open("mysql", dsn)
@@ -644,7 +648,7 @@ func main() {
 	if err := db.Ping(); err != nil {
 		log.Fatalf("Database unreachable: %v", err)
 	}
-	log.Println("Connected to MySQL 'mininetflix' successfully.")
+	log.Println("Connected to MySQL 'mini_netflix' successfully.")
 
 	// Register HTTP Routes (Universal multiplexer compatibility)
 	mux := http.NewServeMux()
@@ -655,6 +659,7 @@ func main() {
 	mux.HandleFunc("/api/ratings", ratingsHandler)
 	mux.HandleFunc("/api/sessions/start", startSessionHandler)
 	mux.HandleFunc("/api/history/progress", historyProgressHandler)
+	mux.HandleFunc("/api/cards", registerCardHandler)
 
 	server := &http.Server{
 		Addr:         ":8080",
