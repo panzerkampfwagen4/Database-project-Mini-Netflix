@@ -633,7 +633,7 @@ func main() {
 	// 1. Read DSN from environment variable, fallback to local MySQL for development
 	dsn := os.Getenv("DATABASE_DSN")
 	if dsn == "" {
-		dsn = "root:P@nzerkampf4@tcp(127.0.0.1:3306)/mini_netflix?parseTime=true"
+		dsn = "root:your_mysql_password@tcp(127.0.0.1:3306)/mini_netflix?parseTime=true"
 	}
 
 	var err error
