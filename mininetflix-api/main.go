@@ -214,7 +214,7 @@ func buildDSN() string {
 			}
 			dsn = fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true%s", user, pass, host, port, name, tlsParam)
 		} else {
-			dsn = "root:P@nzerkampf4@tcp(127.0.0.1:3306)/mini_netflix?parseTime=true"
+			dsn = "2AmEQpexzMhSUci.root:TdsLpNo74ZKkqeSy@tcp(gateway01.ap-southeast-1.prod.aws.tidbcloud.com:4000)/mininetflix?tls=true&parseTime=true"
 		}
 	}
 
