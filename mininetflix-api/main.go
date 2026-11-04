@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -629,9 +630,11 @@ func registerCardHandler(w http.ResponseWriter, r *http.Request) {
 // ============================================================================
 
 func main() {
-	// Configure MySQL credentials (replace with your MySQL user/pass)
-	dsn := "root:P@nzerkampf4@tcp(127.0.0.1:3306)/mini_netflix?parseTime=true"
-	//dsn := "root:your_mysql_password@tcp(127.0.0.1:3306)/_?parseTime=true"
+	// 1. Read DSN from environment variable, fallback to local MySQL for development
+	dsn := os.Getenv("DATABASE_DSN")
+	if dsn == "" {
+		dsn = "root:P@nzerkampf4@tcp(127.0.0.1:3306)/mini_netflix?parseTime=true"
+	}
 
 	var err error
 	db, err = sql.Open("mysql", dsn)
@@ -646,9 +649,17 @@ func main() {
 	db.SetConnMaxLifetime(5 * time.Minute)
 
 	if err := db.Ping(); err != nil {
-		log.Fatalf("Database unreachable: %v", err)
+		log.Printf("[WARNING] Database not immediately reachable: %v", err)
+		// Don't kill the server immediately if deploying without DB initially
+	} else {
+		log.Println("Connected to MySQL successfully.")
 	}
-	log.Println("Connected to MySQL 'mini_netflix' successfully.")
+
+	// 2. Read Port dynamically (Render assigns dynamic PORT environment variable)
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
 
 	// Register HTTP Routes (Universal multiplexer compatibility)
 	mux := http.NewServeMux()
@@ -662,13 +673,13 @@ func main() {
 	mux.HandleFunc("/api/cards", registerCardHandler)
 
 	server := &http.Server{
-		Addr:         ":8080",
+		Addr:         ":" + port, // Handles Render's required PORT
 		Handler:      mux,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 	}
 
-	log.Println("Mini-Netflix REST API running on http://localhost:8080")
+	log.Printf("Mini-Netflix REST API running on port %s", port)
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("Server stopped: %v", err)
 	}
