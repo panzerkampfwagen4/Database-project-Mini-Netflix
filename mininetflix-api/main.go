@@ -189,7 +189,10 @@ func normalizeBillingStatus(raw string) string {
 
 // buildDSN reads DATABASE_DSN (or individual DB_* env vars) and guarantees parseTime=true
 func buildDSN() string {
-	dsn := strings.TrimSpace(os.Getenv("DATABASE_DSN"))
+	dsn := strings.TrimSpace(os.Getenv("DB_DSN"))
+	if dsn == "" {
+		dsn = strings.TrimSpace(os.Getenv("DATABASE_DSN"))
+	}
 
 	if dsn == "" {
 		user := os.Getenv("DB_USER")

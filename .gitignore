@@ -216,3 +216,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# AI Agent Workspaces & Local Tools
+.agents/
+.gemini/
