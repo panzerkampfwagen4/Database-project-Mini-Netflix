@@ -1,11 +1,6 @@
-# Database Project: On-Demand Streaming Platform - Mini-Netflix
+# On-Demand Streaming Platform - Mini-Netflix Database System
 
-The proposed system is an On-Demand Streaming Platform (Mini-Netflix). The platform is a centralized multimedia delivery service designed to manage, categorize, and stream digital video content to end-users. 
-
-To accurately manage this catalog, the system categorizes "Content" into two distinct hierarchical types:  
-
-* **Movies:** Standalone video files characterized by a single duration and video resolution.   
-* **TV Series Episodes:** Serialized media units that belong to a broader TV Series container, requiring complex tracking of seasons and episode numbers. 
+An enterprise-grade relational database architecture and evaluation platform modeling an on-demand video streaming service. The system implements multi-tenant profile isolation, subscription-based content gating, real-time concurrency tracking, and transactional billing workflows compliant with third normal form (3NF).
 
 > This repository accompanies the report:  
 > **On-Demand Streaming Platform - Mini-Netflix**  
@@ -14,251 +9,485 @@ To accurately manage this catalog, the system categorizes "Content" into two dis
 
 ---
 
-## 🌟 Live Demo & Evaluation Portal
+## 1. Domain Concepts and Business Rules
 
-Giảng viên và người đánh giá có thể truy cập trực tiếp hệ thống kiểm thử trực tuyến (Live GUI & REST API) mà không cần cài đặt bất kỳ môi trường nào trên máy:
+### 1.1 Core Domain Concepts
 
-* 🌐 **Live Web Portal:** [https://database-project-mini-netflix.onrender.com](https://database-project-mini-netflix.onrender.com) *(hoặc domain deploy của nhóm)*
-* 🩺 **Health & Keep-Alive Endpoint:** `GET /health` (Được giám sát tự động 24/7 qua UptimeRobot đảm bảo server không sleep/ngủ đông)
-* 🧪 **Interactive Testing Suite:** Tích hợp sẵn giao diện chuyển đổi Profile linh hoạt và các bộ test 1-click cho toàn bộ Business Rules (BR-01 đến BR-05).
+The Mini-Netflix architecture models the real-world operational domain of large-scale video streaming providers. The system separates account ownership from consumption identity, and decouples high-level catalog metadata from low-level streamable media files.
 
----
+1. **Subscription Tiers:** Hierarchical service agreements defining access boundaries. Each tier specifies a monthly rate, video resolution ceiling, and maximum concurrent streams:
+   * **Free (Tier 0):** Up to 480p resolution, strictly 1 concurrent stream, access restricted to baseline content.
+   * **Basic (Tier 1):** Up to 720p resolution, strictly 1 concurrent stream.
+   * **Standard (Tier 2):** Up to 1080p resolution, up to 2 concurrent streams.
+   * **Premium (Tier 3):** Up to 4K UHD resolution, up to 4 concurrent streams.
 
-## System Overview
+2. **Accounts and Profiles:**
+   * **Account:** Represents the paying entity and legal subscriber. Holds login credentials, billing status (`ACTIVE`, `SUSPENDED`, `CANCELLED`), subscription tier, and tokenized payment records.
+   * **Profile:** Represents an individual viewing identity belonging to an Account (up to 5 profiles per account). Maintains isolated watch history, custom watchlists, and title ratings. Can be flagged as a **Kids Profile**.
 
-This project models the database backend of an on-demand streaming platform inspired by Netflix. It manages user accounts, profiles, subscription plans, digital content, and viewing activities while enforcing access control, profile isolation, and data integrity through a structured relational database.
-
----
-
-## Project Objective
-
-The main objective of this project is to design and implement a structured, normalized relational database for an on-demand streaming platform. The database aims to maintain data integrity, support subscription-based access control, manage user profiles and viewing activities, and enforce key business rules through relational constraints.
-
----
-
-## Business Requirements
-
-### 2.1 Business Context
-
-The system is designed for an on-demand streaming platform where users can subscribe to a membership plan and access a centralized catalog of movies and TV series. A single account can manage billing and subscription information while supporting multiple individual profiles, each with its own viewing history, watchlist, and ratings. The platform also needs to manage different content types, genres, subscription-based access levels, concurrent streaming sessions, and parental restrictions. The database therefore serves as the core system for organizing these relationships and enforcing the business rules required to keep user data isolated, content access controlled, and day-to-day streaming operations consistent.
-
-### 2.2 User Roles 
-
-The system defines three main roles with clearly separated responsibilities:
-
-* **Database Administrator (DBA):** Responsible for managing the database infrastructure, including access authorization, security, performance monitoring, and overall database maintenance. The DBA operates at the backend level and does not represent a normal streaming user.
-* **Account Owner:** The primary customer account responsible for subscription and billing management. An Account Owner can manage the account's membership tier and create or remove profiles associated with the account.
-* **Profile:** The end-user identity used for watching content. Each profile belongs to an Account and manages its own watch history, watchlist, ratings, language preferences, and other viewing settings. A profile may also be designated as a **Kids Profile**, subject to age-appropriate content restrictions.
-
-### 2.3 Core Business Rules
-
-The database enforces the following core business rules to maintain consistent access control, user isolation, and data integrity:
-
-* **BR-01 — Subscription Access:** A profile can access content only when the content's required subscription tier is less than or equal to the account's current tier (`ct.minimum_tier_id <= a.current_tier_id`).
-* **BR-02 — Concurrent Streaming:** The number of active streaming sessions for an account cannot exceed the maximum concurrent streams allowed by its subscription tier (`active_sessions < st.max_concurrent_streams`).
-* **BR-03 — Profile Data Isolation:** Watch history, watchlists, and ratings are managed independently for each profile. Activities performed by one profile must not affect another profile under the same account (enforced by composite foreign keys `(account_id, profile_id)`).
-* **BR-04 — Kids Content Restriction:** A Kids Profile must not be allowed to access content classified as R or NC-17 (`ct.maturity_rating NOT IN ('R', 'NC-17')`).
-* **BR-05 — Profile Limit:** Each account must have at least 1 and no more than 5 profiles (`COUNT(profile) <= 5`).
-* **BR-06 — Referential Integrity:** Deleting an account must automatically remove its dependent profiles and related activity records, preventing orphaned data through appropriate cascading rules (`ON DELETE CASCADE`).
+3. **Content Hierarchy and Media Units:**
+   * **Catalog Title:** Abstract container holding common metadata across all titles (title name, maturity rating, minimum tier requirement, synopsis).
+   * **Movies (`movie_title`):** Standalone content linked 1:1 with a media stream unit.
+   * **TV Series (`tv_series`):** Multi-tiered serialized content structured into `season` entities (season number, release date) and `episode` entities (episode number, duration), each referencing its dedicated `streamable_media_unit`.
+   * **Streamable Media Unit (`streamable_media_unit`):** Concrete technical entity storing storage asset URLs, technical resolution, runtime, and audio codec information.
 
 ---
 
-## Database Design
+### 1.2 Formal Business Rules
 
-### 3.1 Conceptual Model
+The relational schema and API layer strictly enforce the following business rules:
 
-The conceptual model represents the main entities and relationships required to support the streaming platform. It organizes accounts, profiles, subscription tiers, content, genres, viewing activities, and streaming sessions while defining their cardinalities and dependencies. The model uses specialization to distinguish Movie and Episode as subtypes of Content, and associative entities to resolve many-to-many relationships such as watchlists, watch history, and profile ratings.
-
-### 3.2 Entity Overview
-
-The database consists of the following main entities:
-
-* **Subscription_Tier:** Defines available membership plans (Free, Basic, Standard, Premium), streaming limits, and video quality.
-* **Account:** Represents the primary customer account responsible for subscription and billing.
-* **Profile:** Represents an individual user profile belonging to an account, with separate viewing preferences and activity data.
-* **Catalog_Title:** The superclass representing all streamable media catalog items.
-* **Streamable_Media_Unit:** Technical streaming asset storing video resolution, runtime duration in seconds, and storage URL.
-* **Movie_Title:** Specialization subclass linking a standalone `catalog_title` to a `streamable_media_unit`.
-* **TV_Series:** Specialization subclass representing a serialized TV show containing seasons.
-* **Season & Episode:** Hierarchical decomposition of TV Series into distinct seasons and streamable episode media units.
-* **Watchlist:** Stores titles saved by profiles for later viewing.
-* **Watch_History:** Records a profile's viewing activity, playback stop checkpoint, and 90% completion flag.
-* **Title_Rating:** Stores ratings (scores 1-10) given by profiles to catalog titles.
-* **Active_Session:** Tracks currently active streaming sessions associated with an account and profile.
+* **BR-01 (Subscription Tier Gating):** A user cannot stream content if their account's subscription tier is lower than the title's `minimum_tier_id`. Attempts to access higher-tier content return an authorization failure indicating the required upgrade.
+* **BR-02 (Concurrent Stream Cap Enforcement):** Active streams across all profiles in an account cannot exceed the account's tier limit (`max_concurrent_streams`). Any playback initiation request that breaches this limit is rejected unless an existing stream session is explicitly stopped.
+* **BR-03 (Parental Content Restriction):** Profiles designated as `is_kids_profile = TRUE` can only access content with maturity ratings `G`, `PG`, or `TV-Y`. Titles rated `PG-13`, `R`, `TV-MA`, or `NC-17` are filtered from queries and blocked from playback.
+* **BR-04 (Watchlist and Rating Integrity):** A profile cannot add duplicate titles to its watchlist (enforced by a composite primary key `(profile_id, title_id)`). A title rating can only be recorded between 1 and 5 stars.
+* **BR-05 (Billing Lifecycle and Profile Retention):** An account marked `SUSPENDED` (due to missed renewal) cannot initiate playback until an invoice is settled. When an account is `CANCELLED`, all active sessions are immediately terminated, while profile configurations and viewing data are preserved for a 10-month retention window.
+* **BR-06 (Tokenized Payment Isolation):** Credit card numbers are never stored in plain text. The system records card brand, last four digits, expiration dates, and a cryptographic payment gateway token (`payment_token`), ensuring PCI-DSS compliance in transactional auditing.
 
 ---
 
-## 📊 Dataset Provenance & Data Engineering (Hiệu chỉnh dữ liệu)
+## 2. Dataset Provenance and Synthesis
 
-### 4.1 Nguồn dữ liệu (Dataset Citation)
-Đồ án sử dụng bộ dữ liệu thực tế:
-> **Netflix Movies and TV Shows Dataset**  
-> HuggingFace Repository: [`hugginglearners/netflix-shows`](https://huggingface.co/datasets/hugginglearners/netflix-shows)  
-> Dữ liệu gốc gồm 8,807 bản ghi (6,131 Movies và 2,676 TV Shows).
+### 2.1 Dataset Source and Preprocessing
 
-### 4.2 Báo cáo chuyển đổi & Hiệu chỉnh đồng bộ với `schema.sql`
-Để đảm bảo **không làm thay đổi kiến trúc CSDL đã chuẩn hóa trong `schema.sql`** và tài liệu báo cáo của nhóm, nhóm đã áp dụng quy trình chuẩn hóa dữ liệu (ETL / Data Normalization) qua script [`scripts/generate_seed.py`](file:///d:/Repository/Database-project-Mini-Netflix/scripts/generate_seed.py) như sau:
+The primary catalog data is derived from the canonical Netflix Movies and TV Shows dataset hosted on Hugging Face and Kaggle:
 
-| Thuộc tính Dataset gốc | Thực thể CSDL đích | Phương pháp hiệu chỉnh (Transformation Logic) |
+* **Primary Dataset Source:** [Hugging Face: hugginglearners/netflix-shows](https://huggingface.co/datasets/hugginglearners/netflix-shows)
+* **Secondary Mirror:** [Kaggle: Netflix Movies and TV Shows](https://www.kaggle.com/datasets/shivamb/netflix-shows)
+
+The raw source dataset contains 8,807 unstructured entries with comma-separated cast lists, unnormalized durations (mixing minutes and season counts), and missing technical identifiers. 
+
+The ingestion pipeline (`scripts/generate_seed.py` and `scripts/sync_seed_tidb.py`) processed and normalized this raw data into a strictly typed, Third Normal Form (3NF) relational model:
+1. Parsing UUIDs and separating movies from multi-season television shows.
+2. Synthesizing seasons and episode counts for television series with sequential episode identifiers.
+3. Generating corresponding technical `streamable_media_unit` records with accurate duration seconds and resolutions based on maturity tiers.
+4. Synthesizing representative user accounts across multiple universities, realistic profile distributions, watchlists, ratings, and active stream sessions.
+
+---
+
+### 2.2 Entity Count and Data Volume Summary
+
+The production database is hosted on a cloud-native TiDB cluster (MySQL 8.0 wire-compatible) in AWS Singapore (`ap-southeast-1`). The table below outlines the exact record distribution:
+
+| Database Table | Entity Description | Record Count |
+| :--- | :--- | :---: |
+| `catalog_title` | Unified catalog headers (Movies and TV Series) | 8,786 |
+| `movie_title` | Standalone feature films | 6,121 |
+| `tv_series` | Serialized television series containers | 2,665 |
+| `season` | Television show season records | 4,709 |
+| `episode` | Individual episodes within seasons | 5,330 |
+| `streamable_media_unit` | Concrete streamable media assets (URLs, runtimes) | 11,451 |
+| `subscription_tier` | Plan tiers (Free, Basic, Standard, Premium) | 4 |
+| `account` | Customer accounts with credentials and billing state | 5 |
+| `profile` | Individual viewing personas (Adult vs. Kids) | 8 |
+| `watchlist` | Profile bookmark records | 8 |
+| `title_rating` | Profile rating reviews (1 to 5 scale) | 6 |
+| `watch_history` | Playback resumption and timestamp tracking | 5 |
+| `active_session` | Real-time concurrent streaming leases | Dynamic |
+| `credit_card` | Tokenized PCI-DSS payment methods | Dynamic |
+| `payment_transaction` | Invoiced billing ledger entries | Dynamic |
+| **Total System Entities** | **Normalized relational rows across all tables** | **36,000+** |
+
+---
+
+## 3. Interactive Web Application Overview
+
+The project provides a fully featured, single-page web application inspired by the authentic Netflix desktop interface. The application serves as both an interactive client for catalog browsing and an administrative evaluation portal for verifying database constraints.
+
+* **Live Deployment:** [https://database-project-mini-netflix.onrender.com](https://database-project-mini-netflix.onrender.com)
+* **Health and Telemetry Endpoint:** `GET https://database-project-mini-netflix.onrender.com/health`
+
+```
++---------------------------------------------------------------------------------------------------+
+|  MINI-NETFLIX   Home  My List  Account & Billing  Rules Verification  Provenance  API Docs  [Profile] |
++---------------------------------------------------------------------------------------------------+
+|                                                                                                   |
+|  FEATURED TITLE BILLBOARD                                                                         |
+|  '76 (Movie | 118 min | 4K UHD | PG-13)                                                           |
+|  [ Play Stream ]   [ + My List ]                                                                  |
+|                                                                                                   |
++---------------------------------------------------------------------------------------------------+
+|  EXPLORE CATALOG                                         [Filter: All Titles | Movies | TV Series] |
+|  [ Card 1: 16:9 ]    [ Card 2: 16:9 ]    [ Card 3: 16:9 ]    [ Card 4: 16:9 ]    [ Card 5: 16:9 ]  |
++---------------------------------------------------------------------------------------------------+
+```
+
+### 3.1 Interface Components
+
+1. **Top Navigation Bar:**
+   * **Navigation Links:** Instant filtering across `Home`, `My List` (bookmarked items for the selected profile), `Account & Billing`, `Rules Verification`, `Dataset Provenance`, and `API Reference`.
+   * **Real-Time Stream Meter:** Displays the live concurrent stream utilization for the active account (e.g., `Streams: 1 / 2`).
+   * **Profile Context Selector:** Dropdown menu allowing instant switching between pre-seeded accounts and profiles to demonstrate rule enforcement in real time.
+
+2. **Billboard (Hero Section):**
+   * Automatically showcases a high-tier featured title with synopsis, runtime, video quality badge, maturity rating, and direct playback controls.
+
+3. **Catalog Grid with Real-Time Filtering:**
+   * Displays 16:9 cinematic cards with tier indicators, runtime/resolution tags, and quick-action buttons (`Play Stream`, `Toggle Watchlist`).
+   * Supports live text search and content-type toggle buttons (`All Titles`, `Movies`, `TV Series`).
+
+4. **Account & Billing Modal:**
+   * Displays account tier, renewal date, and billing status (`ACTIVE`, `SUSPENDED`, `CANCELLED`).
+   * Provides controls for tier upgrading/downgrading, simulated subscription payment, account cancellation, and credit card registration with mock tokenization.
+
+5. **Rules Verification Modal:**
+   * An automated visual test runner presenting the status of all five business rules (BR-01 through BR-05) based on the currently selected profile.
+
+---
+
+## 4. Quickstart and Evaluation Guide
+
+This guide is designed for evaluators and instructors to verify all relational constraints and business rules via both the interactive web portal and direct REST API testing in Postman.
+
+### 4.1 Evaluation Scenarios (Interactive Web Portal)
+
+Evaluators can follow these step-by-step scenarios on the live portal:
+
+#### Test Scenario 1: Subscription Tier Gating (BR-01)
+1. In the top-right profile selector, switch to **David (Free Tier)** (Account #4).
+2. Browse the catalog and locate a title marked **Premium Tier Required** (or click Play on the featured hero title).
+3. **Observed Result:** The system blocks playback and displays an access error stating: *"Access Denied: Title requires Premium tier. Account is currently on Free tier."*
+4. Open **Account & Billing**, change the tier dropdown to **Premium ($19.99/mo)**, and confirm.
+5. Click **Play Stream** on the same title.
+6. **Observed Result:** The stream initializes successfully.
+
+#### Test Scenario 2: Concurrent Stream Cap Enforcement (BR-02)
+1. Switch to **Charlie (Basic Tier)** (Account #3). Basic tier allows strictly **1 stream**.
+2. Click **Play Stream** on any eligible movie. The stream meter updates to `Streams: 1 / 1`.
+3. Attempt to start a second stream on another title.
+4. **Observed Result:** The API rejects the request with HTTP 403: *"Concurrent streaming limit reached (1/1 streams active for Basic plan). Stop an existing stream to start a new one."*
+5. Click the Stream Meter pill in the navbar to open the Active Streams manager, click **Terminate Session**, and retry. The second stream now succeeds.
+
+#### Test Scenario 3: Parental Controls for Kids Profiles (BR-03)
+1. Select **Alice (Main)** (Account #1, Adult profile). Observe titles rated `R`, `TV-MA`, and `PG-13` present in the catalog.
+2. In the profile selector, switch to **Alice (Kids)** (`is_kids_profile = TRUE`).
+3. **Observed Result:** The catalog immediately re-renders, displaying exclusively family-safe titles (`G`, `PG`, `TV-Y`). All mature titles are completely hidden and unqueryable.
+
+#### Test Scenario 4: Profile Isolation & Watchlist Management (BR-04)
+1. Under **Alice (Main)**, click the **+ My List** button on two distinct movies.
+2. Click the **My List** navigation tab to verify the items appear.
+3. Switch profile to **Bob (Main)** (Account #2) and click **My List**.
+4. **Observed Result:** Bob's list is completely empty or contains only his own bookmarks. Data isolation is maintained across profiles.
+
+#### Test Scenario 5: Account Suspension and Payment Workflow (BR-05 / BR-06)
+1. Switch profile to **Emma (Suspended)** (Account #5). Notice the `SUSPENDED` account badge.
+2. Attempt to start any playback stream.
+3. **Observed Result:** Playback is blocked: *"Account subscription is SUSPENDED due to past due invoice."*
+4. Open **Account & Billing**, click **Pay Due Invoice & Reactivate**.
+5. The system records a mock transaction, updates `billing_status` to `ACTIVE`, and recalculates `next_billing_date` 30 days ahead. Playback is restored immediately.
+
+---
+
+### 4.2 Direct Postman and REST API Testing Guide
+
+Instructors and evaluators who prefer testing directly against the backend REST API using **Postman**, **cURL**, or any HTTP client can execute the test suite below.
+
+#### Base URL Configuration
+* **Live Cloud Deployment:** `https://database-project-mini-netflix.onrender.com`
+* **Local Development Server:** `http://localhost:8080`
+
+In Postman, define an environment variable `baseUrl = https://database-project-mini-netflix.onrender.com` and set the request header `Content-Type: application/json` for all POST requests.
+
+---
+
+#### Postman Test Case 1: System Health and Database Engine Verification
+Verifies connectivity to the cloud TiDB / MySQL cluster and confirms connection pooling state.
+
+* **Method:** `GET`
+* **Endpoint:** `{{baseUrl}}/health`
+* **cURL Command:**
+  ```bash
+  curl -X GET "https://database-project-mini-netflix.onrender.com/health"
+  ```
+* **Expected Response (HTTP 200 OK):**
+  ```json
+  {
+    "success": true,
+    "message": "Connected",
+    "data": {
+      "database": "MySQL 8.0 / TiDB"
+    }
+  }
+  ```
+
+---
+
+#### Postman Test Case 2: Content Catalog Retrieval & Parental Restriction (BR-03)
+Demonstrates relational filtering based on the profile context. Querying with an adult profile returns all mature content, while querying with a kids profile strictly excludes R and TV-MA titles.
+
+* **Method:** `GET`
+* **Endpoint (Adult Profile):** `{{baseUrl}}/api/catalog?profile_id=1&limit=5`
+* **Endpoint (Kids Profile):** `{{baseUrl}}/api/catalog?profile_id=2&limit=5`
+* **cURL Command (Kids Profile Verification):**
+  ```bash
+  curl -X GET "https://database-project-mini-netflix.onrender.com/api/catalog?profile_id=2&limit=5"
+  ```
+* **Expected Response (HTTP 200 OK):**
+  ```json
+  {
+    "success": true,
+    "count": 5,
+    "data": [
+      {
+        "title_id": "0007b302-126b-7e30-890a-30258bfed41e",
+        "title_name": "Elf Pets: Santa's Reindeer Rescue",
+        "content_type": "Movie",
+        "maturity_rating": "G",
+        "minimum_tier_id": 0,
+        "video_resolution": "480p"
+      }
+    ]
+  }
+  ```
+  *Notice that `maturity_rating` never contains R, TV-MA, or PG-13 when `profile_id=2`.*
+
+---
+
+#### Postman Test Case 3: Start Stream & Tier / Concurrency Gating (BR-01, BR-02, BR-05)
+Initiates a streaming lease. If the account's tier is below the title requirement or active streams reach the plan cap, the transaction is aborted.
+
+* **Method:** `POST`
+* **Endpoint:** `{{baseUrl}}/api/sessions/start`
+* **Headers:** `Content-Type: application/json`
+* **cURL Command (Testing Tier Gating with Free Account #4):**
+  ```bash
+  curl -X POST "https://database-project-mini-netflix.onrender.com/api/sessions/start" \
+    -H "Content-Type: application/json" \
+    -d '{
+      "account_id": 4,
+      "profile_id": 7,
+      "title_id": "00281697-f03c-54ad-903f-60a01ac8038f",
+      "device_fingerprint": "postman-evaluator"
+    }'
+  ```
+* **Expected Response when Tier Insufficient (HTTP 403 Forbidden):**
+  ```json
+  {
+    "success": false,
+    "message": "Title requires Premium tier (Account is currently Free)"
+  }
+  ```
+* **Expected Response on Success (HTTP 200 OK):**
+  ```json
+  {
+    "success": true,
+    "message": "Playback session started",
+    "data": {
+      "session_id": "sess_a8b9c0d1e2f3",
+      "max_streams": 4,
+      "active_streams": 1
+    }
+  }
+  ```
+
+---
+
+#### Postman Test Case 4: Terminate Stream Session (Concurrency Release)
+Terminates an active playback session lease, freeing capacity for concurrent playback.
+
+* **Method:** `POST`
+* **Endpoint:** `{{baseUrl}}/api/sessions/stop`
+* **Headers:** `Content-Type: application/json`
+* **cURL Command:**
+  ```bash
+  curl -X POST "https://database-project-mini-netflix.onrender.com/api/sessions/stop" \
+    -H "Content-Type: application/json" \
+    -d '{
+      "session_id": "sess_a8b9c0d1e2f3"
+    }'
+  ```
+* **Expected Response (HTTP 200 OK):**
+  ```json
+  {
+    "success": true,
+    "message": "Session terminated"
+  }
+  ```
+
+---
+
+#### Postman Test Case 5: Upgrade Subscription Tier (BR-01 Resolution)
+Modifies the account subscription plan directly in the database.
+
+* **Method:** `POST`
+* **Endpoint:** `{{baseUrl}}/api/accounts/tier`
+* **Headers:** `Content-Type: application/json`
+* **Payload:**
+  ```json
+  {
+    "account_id": 4,
+    "tier_id": 3
+  }
+  ```
+* **cURL Command:**
+  ```bash
+  curl -X POST "https://database-project-mini-netflix.onrender.com/api/accounts/tier" \
+    -H "Content-Type: application/json" \
+    -d '{"account_id": 4, "tier_id": 3}'
+  ```
+* **Expected Response (HTTP 200 OK):**
+  ```json
+  {
+    "success": true,
+    "message": "Account #4 subscription tier updated"
+  }
+  ```
+
+---
+
+#### Postman Test Case 6: Invoiced Payment & Account Reactivation (BR-05)
+Processes a simulated billing settlement for suspended accounts (such as Account #5), updating `billing_status` to `ACTIVE` and advancing `next_billing_date` by 30 days.
+
+* **Method:** `POST`
+* **Endpoint:** `{{baseUrl}}/api/accounts/pay`
+* **Headers:** `Content-Type: application/json`
+* **Payload:**
+  ```json
+  {
+    "account_id": 5
+  }
+  ```
+* **cURL Command:**
+  ```bash
+  curl -X POST "https://database-project-mini-netflix.onrender.com/api/accounts/pay" \
+    -H "Content-Type: application/json" \
+    -d '{"account_id": 5}'
+  ```
+* **Expected Response (HTTP 200 OK):**
+  ```json
+  {
+    "success": true,
+    "message": "Payment processed for Account #5. Billing status is now ACTIVE."
+  }
+  ```
+
+---
+
+#### Postman Test Case 7: Tokenized Card Registration & Ledger Auditing (BR-06)
+Registers a credit card without persisting raw primary account numbers, generating a synthetic gateway payment token.
+
+* **Method:** `POST`
+* **Endpoint:** `{{baseUrl}}/api/cards`
+* **Headers:** `Content-Type: application/json`
+* **Payload:**
+  ```json
+  {
+    "account_id": 1,
+    "cardholder_name": "Alice Smith",
+    "card_number": "4242424242424242",
+    "exp_month": 12,
+    "exp_year": 2028,
+    "cvv": "123"
+  }
+  ```
+* **cURL Command:**
+  ```bash
+  curl -X POST "https://database-project-mini-netflix.onrender.com/api/cards" \
+    -H "Content-Type: application/json" \
+    -d '{
+      "account_id": 1,
+      "cardholder_name": "Alice Smith",
+      "card_number": "4242424242424242",
+      "exp_month": 12,
+      "exp_year": 2028,
+      "cvv": "123"
+    }'
+  ```
+* **Expected Response (HTTP 201 Created):**
+  ```json
+  {
+    "success": true,
+    "message": "Card registered and initial transaction processed successfully",
+    "data": {
+      "card_id": 1,
+      "brand": "VISA",
+      "last_four": "4242",
+      "payment_token": "tok_mock_8f91c7a2b3e4d5",
+      "transaction_status": "SUCCESS"
+    }
+  }
+  ```
+
+---
+
+#### Postman Test Case 8: Profile Watchlist Toggle (BR-04)
+Toggles a catalog title in the profile's isolated watchlist. Adding an existing item automatically removes it, preserving uniqueness without primary key collisions.
+
+* **Method:** `POST`
+* **Endpoint:** `{{baseUrl}}/api/watchlist`
+* **Headers:** `Content-Type: application/json`
+* **Payload:**
+  ```json
+  {
+    "profile_id": 1,
+    "title_id": "0007b302-126b-7e30-890a-30258bfed41e"
+  }
+  ```
+* **cURL Command:**
+  ```bash
+  curl -X POST "https://database-project-mini-netflix.onrender.com/api/watchlist" \
+    -H "Content-Type: application/json" \
+    -d '{"profile_id": 1, "title_id": "0007b302-126b-7e30-890a-30258bfed41e"}'
+  ```
+* **Expected Response (HTTP 200 OK):**
+  ```json
+  {
+    "success": true,
+    "message": "Added to watchlist"
+  }
+  ```
+
+---
+
+### 4.3 Local Development and Deployment
+
+The project can be executed locally using the native Go runtime or Docker.
+
+#### Prerequisites
+* Go 1.22 or higher (or Docker)
+* Access to a MySQL 8.0 or TiDB database cluster
+
+#### Environment Variables
+| Variable | Description | Default Fallback |
 | :--- | :--- | :--- |
-| `type` (`"Movie"`, `"TV Show"`) | `catalog_title.content_type` | Map `"TV Show"` $\rightarrow$ `'Series'` để khớp 100% với `ENUM('Movie', 'Series')`. |
-| `rating` (`TV-MA`, `TV-14`, `TV-PG`, `TV-Y`...) | `catalog_title.maturity_rating` | Chuẩn hóa hệ mã truyền hình sang mã tương đương trong `ENUM('G', 'PG', 'PG-13', 'R', 'NC-17')`:<br>&bull; `TV-MA`, `UR` $\rightarrow$ `'R'` (Dành cho người lớn)<br>&bull; `TV-14` $\rightarrow$ `'PG-13'` (Khán giả từ 14 tuổi)<br>&bull; `TV-PG`, `NR` $\rightarrow$ `'PG'` (Có phụ huynh hướng dẫn)<br>&bull; `TV-Y`, `TV-Y7`, `TV-G` $\rightarrow$ `'G'` (Mọi lứa tuổi / Trẻ em) |
-| `duration` (`"90 min"`, `"2 Seasons"`) | `streamable_media_unit.duration_seconds` & `tv_series.total_seasons` | &bull; **Movie:** Trích xuất số phút và quy đổi ra giây (`seconds = min * 60`).<br>&bull; **Series:** Trích xuất số Season lưu vào `tv_series.total_seasons`, đồng thời tự động phân rã thành các bảng con `season` và `episode` với thời lượng tập tương ứng. |
-| *(Dữ liệu nền tảng)* | `subscription_tier` | Khởi tạo 4 gói cước chuẩn: `Free` (Tier 0), `Basic` (Tier 1), `Standard` (Tier 2), `Premium` (Tier 3). |
-| *(Dữ liệu phân quyền)* | `catalog_title.minimum_tier_id` | Phân bổ cấp gói yêu cầu từ 0 đến 3 trên danh mục để phục vụ kiểm thử **BR-01**. |
-| *(Dữ liệu người dùng mẫu)* | `account`, `profile`, `watchlist`, `title_rating` | Khởi tạo 5 tài khoản sinh viên PTIT với đầy đủ Adult Profile, Kids Profile (kiểm thử **BR-04**), giới hạn Stream (kiểm thử **BR-02**) và hạn mức 5 profiles (kiểm thử **BR-05**). |
+| `PORT` | Listening HTTP port | `8080` |
+| `DATABASE_DSN` | Full MySQL connection DSN | Built-in TiDB Cloud Singapore gateway |
+| `DB_DSN` | Alternative alias for connection DSN | Uses `DATABASE_DSN` |
+
+#### Running the Server
+```bash
+# Clone the repository
+git clone https://github.com/panzerkampfwagen4/Database-project-Mini-Netflix.git
+cd Database-project-Mini-Netflix
+
+# Run the API server directly (dependencies resolve automatically via Go modules)
+go run mininetflix-api/main.go
+```
+The server will start on `http://localhost:8080` with the complete web GUI embedded.
 
 ---
 
-## Database Implementation
+## 5. Repository Architecture
 
-### 5.1 Technology Stack
-* **Database Management System:** MySQL 8.0+ / TiDB Cloud Serverless (Wire-compatible MySQL).
-* **Backend Runtime:** Go (Golang 1.22+) RESTful API microservice.
-* **Frontend Portal:** Single-Page Web Application (Embedded HTML5/CSS3/Vanilla JS) styled with Netflix modern dark theme.
-* **Keep-Alive Service:** UptimeRobot 24/7 Automated Health Ping Monitor.
-
-### 5.2 Project Structure
-```text
+```
 Database-project-Mini-Netflix/
-├── mininetflix-api/
-│   ├── static/
-│   │   └── index.html         # Web GUI Evaluation Portal (nhúng trực tiếp vào Go binary)
-│   ├── go.mod                 # Go module definition
-│   ├── go.sum                 # Go dependencies checksums
-│   └── main.go                # REST API handlers, CORS middleware, DSN config & DB pool
-├── scripts/
-│   └── generate_seed.py       # Script ETL chuyển đổi dataset HuggingFace sang seed.sql
-├── schema.sql                 # Cấu trúc CSDL (13 bảng, DDL, Khóa ngoại, Ràng buộc CHECK/UNIQUE)
-├── seed.sql                   # Bộ dữ liệu mẫu đầy đủ từ dataset Netflix
-├── netflix_titles.csv         # File dataset gốc từ HuggingFace
-├── Database Report.pdf        # Báo cáo đồ án CSDL hoàn chỉnh
-└── README.md                  # Hướng dẫn chi tiết cho Giảng viên & Hội đồng
+|-- schema.sql                 # Complete DDL definitions for 15 relational tables with 3NF constraints
+|-- seed.sql                   # Production seed dataset (39,928 SQL lines, 8,786 catalog titles)
+|-- README.md                  # Comprehensive technical documentation and evaluation manual
+|-- mininetflix-api/           # RESTful API and Web Platform backend
+|   |-- go.mod                 # Go module definition and dependencies (mysql driver)
+|   |-- go.sum                 # Cryptographic checksums of Go dependencies
+|   |-- main.go                # Server implementation (handlers, transaction logic, connection pool)
+|   +-- static/
+|       +-- index.html         # Authentic single-page Netflix web client with embedded styles & logic
++-- scripts/                   # Data pipelines and database synchronization tools
+    |-- generate_seed.py       # Raw dataset ingestion and SQL seed generator
+    +-- sync_seed_tidb.py      # Automated bulk migration and verification script for TiDB Cloud
 ```
 
----
-
-## Setup & Quickstart
-
-### 6.1 Khởi chạy trực tiếp (Không cần cài đặt)
-Giảng viên chỉ cần mở trình duyệt và truy cập:
-👉 **[https://database-project-mini-netflix.onrender.com](https://database-project-mini-netflix.onrender.com)**
-
-### 6.2 Khởi chạy cục bộ (Local Setup)
-
-#### Bước 1: Khởi tạo CSDL MySQL
-Đăng nhập vào MySQL và thực thi nạp cấu trúc cùng dữ liệu mẫu:
-```bash
-mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS mininetflix;"
-mysql -u root -p mininetflix < schema.sql
-mysql -u root -p mininetflix < seed.sql
-```
-
-#### Bước 2: Khởi động Backend API & Web Portal
-Cấu hình biến môi trường và chạy ứng dụng Go:
-```bash
-cd mininetflix-api
-
-# Cách 1: Sử dụng chuỗi DSN đầy đủ
-export DB_DSN="root:password@tcp(127.0.0.1:3306)/mininetflix?parseTime=true&charset=utf8mb4"
-
-# Cách 2: Sử dụng các biến thành phần (hoặc để mặc định)
-export DB_USER="root"
-export DB_PASSWORD="your_password"
-export DB_HOST="127.0.0.1"
-export DB_PORT="3306"
-export DB_NAME="mininetflix"
-export PORT="8080"
-
-go run main.go
-```
-
-Mở trình duyệt tại địa chỉ: `http://localhost:8080`
-
----
-
-## Verification & Testing (Kiểm thử Quy tắc Nghiệp vụ)
-
-Hệ thống cung cấp sẵn các bộ dữ liệu mẫu trong [`seed.sql`](file:///d:/Repository/Database-project-Mini-Netflix/seed.sql) để kiểm chứng 5 Business Rules:
-
-### 7.1 Test BR-01: Subscription Access Control
-* **Kịch bản:** Tài khoản của David (Account ID `4`, Profile ID `7`) đang ở gói **Free (Tier 0)**. Khi gọi API catalog, hệ thống chỉ trả về các tựa phim có `minimum_tier_id <= 0`.
-* **cURL kiểm tra:**
-  ```bash
-  curl -X GET "http://localhost:8080/api/catalog?profile_id=7"
-  ```
-* **Kết quả mong đợi:** Tất cả các bản ghi trả về đều có `minimum_tier_id = 0`, không xuất hiện phim thuộc Tier 1, 2, 3.
-
-### 7.2 Test BR-02: Concurrent Streaming Limit
-* **Kịch bản:** Tài khoản của Bob (Account ID `2`) sử dụng gói **Standard (Tier 2, tối đa 2 streams đồng thời)**. Khi cố gắng khởi tạo stream thứ 3, server sẽ từ chối và trả về HTTP `409 Conflict`.
-* **cURL kiểm tra:**
-  ```bash
-  # Stream 1 (Thành công - HTTP 201)
-  curl -X POST "http://localhost:8080/api/sessions/start" -H "Content-Type: application/json" -d '{"account_id":2,"profile_id":4,"device_fingerprint":"dev-1"}'
-
-  # Stream 2 (Thành công - HTTP 201)
-  curl -X POST "http://localhost:8080/api/sessions/start" -H "Content-Type: application/json" -d '{"account_id":2,"profile_id":4,"device_fingerprint":"dev-2"}'
-
-  # Stream 3 (Bị chặn - HTTP 409 Conflict)
-  curl -X POST "http://localhost:8080/api/sessions/start" -H "Content-Type: application/json" -d '{"account_id":2,"profile_id":4,"device_fingerprint":"dev-3"}'
-  ```
-
-### 7.3 Test BR-03: Profile Data Isolation
-* **Kịch bản:** Watchlist của Profile `1` (Alice Main) hoàn toàn độc lập với Profile `4` (Bob Main).
-* **cURL kiểm tra:**
-  ```bash
-  curl -X GET "http://localhost:8080/api/watchlist?profile_id=1"
-  curl -X GET "http://localhost:8080/api/watchlist?profile_id=4"
-  ```
-
-### 7.4 Test BR-04: Kids Profile Restrictions
-* **Kịch bản:** Alice Junior (Profile ID `2`) có `is_kids_profile = true`. Khi truy vấn danh mục, hệ thống tự động loại trừ toàn bộ nội dung dán nhãn `R` và `NC-17`.
-* **cURL kiểm tra:**
-  ```bash
-  curl -X GET "http://localhost:8080/api/catalog?profile_id=2"
-  ```
-* **Kết quả:** Danh mục trả về chỉ gồm `G`, `PG`, `PG-13`; không có bất kỳ phim `R` hay `NC-17`.
-
-### 7.5 Test BR-05: Account Profile Threshold (1 <= N <= 5)
-* **Kịch bản:** Khi tài khoản đã đạt đủ 5 profile, việc gửi request tạo thêm profile sẽ bị chặn với mã lỗi HTTP `409 Conflict`.
-* **cURL kiểm tra:**
-  ```bash
-  curl -X POST "http://localhost:8080/api/profiles" -H "Content-Type: application/json" \
-    -d '{"account_id":1,"profile_name":"Extra Profile","is_kids_profile":false}'
-  ```
-
----
-
-## REST API Reference
-
-| Method | Endpoint | Description | Request Query / Body |
-| :--- | :--- | :--- | :--- |
-| `GET` | `/` hoặc `/ui` | Giao diện Evaluation Portal tương tác trực quan | - |
-| `GET` | `/health` | Kiểm tra tình trạng server & kết nối MySQL (Keep-alive) | - |
-| `GET` | `/api/catalog` | Lấy danh mục phim (áp dụng lọc theo BR-01 & BR-04) | `?profile_id=1&type=Movie&search=Star` |
-| `POST` | `/api/movies` | Thêm phim mới vào mô hình phân cấp EER | `{"title_name":"...","maturity_rating":"PG-13","minimum_tier_id":1,"synopsis":"...","duration_seconds":5400,"video_resolution":"1080p","storage_asset_url":"https://..."}` |
-| `GET` | `/api/profiles` | Danh sách tất cả profile kèm thông tin gói cước | - |
-| `POST` | `/api/profiles` | Tạo profile mới (ràng buộc BR-05 $\le 5$) | `{"account_id":1,"profile_name":"Bob","is_kids_profile":false}` |
-| `GET` | `/api/watchlist` | Xem danh sách phim đã lưu của Profile | `?profile_id=1` |
-| `POST` | `/api/watchlist` | Thêm phim vào Watchlist | `{"profile_id":1,"title_id":"..."}` |
-| `POST` | `/api/ratings` | Đánh giá phim (Điểm 1 - 10) | `{"profile_id":1,"title_id":"...","score":9}` |
-| `POST` | `/api/sessions/start` | Khởi tạo phiên xem phim trực tuyến (BR-02) | `{"account_id":1,"profile_id":1,"device_fingerprint":"chrome-win"}` |
-| `GET` | `/api/sessions` | Xem danh sách các phiên xem phim đang hoạt động | `?account_id=1` |
-| `POST` | `/api/history/progress` | Ghi nhận tiến độ xem phim & tính cờ hoàn thành | `{"profile_id":1,"media_unit_id":"...","playback_stop_seconds":5000}` |
-
----
-
-## Security & Data Integrity
-
-1. **Ràng buộc toàn vẹn quan hệ (Referential Integrity):** Toàn bộ các bảng liên quan (Profile, Watchlist, Ratings, Watch History, Active Sessions) đều được thiết lập khóa ngoại liên kết với `ON DELETE CASCADE` đảm bảo loại bỏ triệt để bản ghi mồ côi (orphaned records).
-2. **Kiểm soát tính hợp lệ (Domain Constraints):** Sử dụng các ràng buộc `CHECK` nghiêm ngặt (`tier_id IN (0,1,2,3)`, `max_concurrent_streams IN (1,2,4)`, `score BETWEEN 1 AND 10`).
-3. **Phân vùng dữ liệu (Multi-Tenant Composite Keys):** Phiên làm việc `active_session` tham chiếu khóa ngoại kép `(account_id, prof_id) REFERENCES profile(account_id, profile_id)` đảm bảo tính cô lập tuyệt đối, tránh tình trạng phiên stream gán sai tài khoản sở hữu.
-
----
-
-## References
-
-1. HuggingFace Datasets: [Netflix Movies and TV Shows Dataset (`hugginglearners/netflix-shows`)](https://huggingface.co/datasets/hugginglearners/netflix-shows).
-2. MySQL 8.0 Reference Manual: [Constraint & Foreign Key Referencing](https://dev.mysql.com/doc/refman/8.0/en/).
-3. TiDB Cloud Documentation: [MySQL Wire Compatibility & Serverless Driver](https://docs.pingcap.com/tidbcloud/).
-4. Go Database/SQL Documentation: [Connection Pooling & Prepared Statements](https://pkg.go.dev/database/sql).
+### Module Descriptions
+* **`schema.sql`:** Contains table definitions, primary keys, foreign key cascades, unique constraints, and check constraints across all 15 relational entities.
+* **`seed.sql`:** Structured data load script containing 8,786 titles, 11,451 media streams, test accounts across multiple subscription tiers, profiles, and initial stream sessions.
+* **`mininetflix-api/main.go`:** Self-contained backend server providing JSON endpoints (`/api/catalog`, `/api/sessions`, `/api/accounts`, `/api/watchlist`, `/api/ratings`, `/api/cards`) and serving the single-page application via `go:embed`.
+* **`mininetflix-api/static/index.html`:** Clean single-page application implementing real-time catalog search, profile state switching, stream concurrency inspectors, and billing dialogues without external framework overhead.
+* **`scripts/`:** Python automation scripts responsible for dataset transformation, schema normalization, and automated TiDB Cloud ingestion.
