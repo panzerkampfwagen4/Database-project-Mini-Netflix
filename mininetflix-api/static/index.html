@@ -782,150 +782,9 @@
 
     .tab-pane { display: none; }
     .tab-pane.active { display: block; }
-
-    /* Auth Screen */
-    .auth-screen {
-      position: fixed;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background: #000;
-      z-index: 500;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-    }
-    .auth-screen.hidden { display: none; }
-    .auth-box {
-      background: rgba(0,0,0,0.75);
-      border: 1px solid #333;
-      border-radius: 8px;
-      padding: 48px;
-      width: 90%;
-      max-width: 450px;
-    }
-    .auth-box h1 {
-      font-size: 32px;
-      font-weight: 700;
-      margin-bottom: 28px;
-    }
-    .auth-tabs {
-      display: flex;
-      gap: 0;
-      margin-bottom: 24px;
-    }
-    .auth-tab {
-      flex: 1;
-      padding: 10px;
-      text-align: center;
-      background: #222;
-      color: #888;
-      border: none;
-      font-size: 14px;
-      font-weight: 700;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-    .auth-tab:first-child { border-radius: 4px 0 0 4px; }
-    .auth-tab:last-child { border-radius: 0 4px 4px 0; }
-    .auth-tab.active {
-      background: var(--netflix-red);
-      color: #FFF;
-    }
-    .auth-input {
-      width: 100%;
-      background: #333;
-      border: 1px solid #555;
-      color: #FFF;
-      padding: 14px 16px;
-      border-radius: 4px;
-      font-size: 15px;
-      margin-bottom: 16px;
-      outline: none;
-    }
-    .auth-input:focus { border-color: var(--netflix-red); }
-    .auth-input::placeholder { color: #8c8c8c; }
-    .auth-submit {
-      width: 100%;
-      padding: 14px;
-      background: var(--netflix-red);
-      color: #FFF;
-      border: none;
-      border-radius: 4px;
-      font-size: 16px;
-      font-weight: 700;
-      cursor: pointer;
-      margin-top: 8px;
-      transition: background 0.2s;
-    }
-    .auth-submit:hover { background: var(--netflix-red-hover); }
-    .auth-error {
-      color: #e87c03;
-      font-size: 13px;
-      margin-bottom: 12px;
-      display: none;
-    }
-    .auth-logo {
-      font-family: 'Bebas Neue', sans-serif;
-      color: var(--netflix-red);
-      font-size: 42px;
-      letter-spacing: 2px;
-      margin-bottom: 32px;
-      text-shadow: 0 2px 8px rgba(229, 9, 20, 0.4);
-    }
-    .logout-btn {
-      background: none;
-      border: 1px solid #555;
-      color: #CCC;
-      padding: 5px 12px;
-      border-radius: 3px;
-      font-size: 12px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-    .logout-btn:hover {
-      border-color: var(--netflix-red);
-      color: var(--netflix-red);
-    }
   </style>
 </head>
 <body>
-
-  <!-- Auth Screen (Login / Register) -->
-  <div id="auth-screen" class="auth-screen">
-    <div class="auth-logo">MINI-NETFLIX</div>
-    <div class="auth-box">
-      <div class="auth-tabs">
-        <button class="auth-tab active" onclick="switchAuthTab('login', this)">Đăng Nhập</button>
-        <button class="auth-tab" onclick="switchAuthTab('register', this)">Đăng Ký</button>
-      </div>
-
-      <!-- Login Form -->
-      <div id="auth-login-form">
-        <div id="login-error" class="auth-error"></div>
-        <input type="email" id="login-email" class="auth-input" placeholder="Email">
-        <input type="password" id="login-password" class="auth-input" placeholder="Mật khẩu">
-        <button class="auth-submit" onclick="doLogin()">Đăng Nhập</button>
-        <p style="color:#737373; font-size:13px; margin-top:16px;">Chưa có tài khoản? <a href="#" style="color:#FFF; text-decoration:none;" onclick="switchAuthTab('register', null)">Đăng ký ngay</a></p>
-      </div>
-
-      <!-- Register Form -->
-      <div id="auth-register-form" style="display:none;">
-        <div id="register-error" class="auth-error"></div>
-        <input type="email" id="register-email" class="auth-input" placeholder="Email">
-        <input type="password" id="register-password" class="auth-input" placeholder="Mật khẩu">
-        <input type="password" id="register-password-confirm" class="auth-input" placeholder="Xác nhận mật khẩu">
-        <select id="register-tier" class="auth-input" style="cursor:pointer;">
-          <option value="0">Free ($0.00/tháng - 1 Stream, 480p)</option>
-          <option value="1">Basic ($9.99/tháng - 1 Stream, 720p)</option>
-          <option value="2" selected>Standard ($15.49/tháng - 2 Streams, 1080p)</option>
-          <option value="3">Premium ($19.99/tháng - 4 Streams, 4K UHD)</option>
-        </select>
-        <button class="auth-submit" onclick="doRegister()">Đăng Ký</button>
-        <p style="color:#737373; font-size:13px; margin-top:16px;">Đã có tài khoản? <a href="#" style="color:#FFF; text-decoration:none;" onclick="switchAuthTab('login', null)">Đăng nhập</a></p>
-      </div>
-    </div>
-  </div>
 
   <!-- Netflix Navigation Header -->
   <header class="netflix-header">
@@ -962,7 +821,6 @@
         </select>
         <span id="header-tier-pill" class="badge-pill badge-premium">PREMIUM</span>
       </div>
-      <button class="logout-btn" onclick="doLogout()" title="Đăng xuất">Đăng Xuất</button>
     </div>
   </header>
 
@@ -1040,11 +898,7 @@
             <h2 class="section-title-text">Membership & Billing Center</h2>
             <p style="font-size:13px; color:var(--text-gray); margin-top:4px;">Manage subscription tiers, renew past-due billing, and manage multi-profile entitlements.</p>
           </div>
-          <div style="display:flex; gap:10px; flex-wrap:wrap;">
-            <button class="btn btn-netflix" onclick="openNewAccountModal()">+ Đăng Ký Tài Khoản</button>
-            <button class="btn btn-glass" onclick="openNewProfileModal()">+ Thêm Profile</button>
-            <button class="btn btn-border" onclick="openCardModal()">💳 Đăng Ký Thẻ</button>
-          </div>
+          <button class="btn btn-netflix" onclick="openNewAccountModal()">+ Register Customer Account</button>
         </div>
 
         <div style="background:#1C1C1C; border:1px solid #333; border-radius:6px; padding:16px 20px; margin-bottom:20px;">
@@ -1357,51 +1211,6 @@
     </div>
   </div>
 
-  <!-- Credit Card Registration Modal -->
-  <div id="card-modal" class="overlay-backdrop">
-    <div class="overlay-modal">
-      <div class="modal-head">
-        <h3 class="modal-heading-text">Đăng Ký Thẻ Thanh Toán</h3>
-        <button class="modal-close-x" onclick="closeCardModal()">&times;</button>
-      </div>
-      <div class="form-group-item">
-        <label>Tên Chủ Thẻ:</label>
-        <input type="text" id="card-holder" class="input-field" placeholder="NGUYEN VAN A">
-      </div>
-      <div class="form-group-item">
-        <label>Số Thẻ:</label>
-        <input type="text" id="card-number" class="input-field" placeholder="4242 4242 4242 4242" maxlength="19" oninput="formatCardNumber(this)">
-      </div>
-      <div style="display:flex; gap:12px;">
-        <div class="form-group-item" style="flex:1;">
-          <label>Tháng Hết Hạn:</label>
-          <select id="card-exp-month" class="select-field">
-            <option value="1">01</option><option value="2">02</option><option value="3">03</option>
-            <option value="4">04</option><option value="5">05</option><option value="6">06</option>
-            <option value="7">07</option><option value="8">08</option><option value="9">09</option>
-            <option value="10">10</option><option value="11">11</option><option value="12" selected>12</option>
-          </select>
-        </div>
-        <div class="form-group-item" style="flex:1;">
-          <label>Năm Hết Hạn:</label>
-          <select id="card-exp-year" class="select-field">
-            <option value="2025">2025</option><option value="2026" selected>2026</option>
-            <option value="2027">2027</option><option value="2028">2028</option>
-            <option value="2029">2029</option><option value="2030">2030</option>
-          </select>
-        </div>
-        <div class="form-group-item" style="flex:1;">
-          <label>CVV:</label>
-          <input type="password" id="card-cvv" class="input-field" placeholder="***" maxlength="4">
-        </div>
-      </div>
-      <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:24px;">
-        <button class="btn btn-border" onclick="closeCardModal()">Huỷ</button>
-        <button class="btn btn-netflix" onclick="submitCard()">Lưu Thẻ</button>
-      </div>
-    </div>
-  </div>
-
   <!-- Simulated Streaming Video Player Modal -->
   <div id="video-player-modal" class="player-backdrop">
     <div class="player-topbar">
@@ -1450,207 +1259,14 @@
     let searchDebounce = null;
     let heroItem = null;
     let activeStreamingSessionId = null;
-    let loggedInAccount = null; // { account_id, email }
-    let cardModalAccountId = null;
 
     const tierLabels = ['Free', 'Basic', 'Standard', 'Premium'];
 
-    // ====== AUTH FUNCTIONS ======
-    function switchAuthTab(tab, btn) {
-      document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
-      if (btn) btn.classList.add('active');
-      else {
-        document.querySelectorAll('.auth-tab').forEach(t => {
-          if ((tab === 'login' && t.textContent.includes('Đăng Nhập')) ||
-              (tab === 'register' && t.textContent.includes('Đăng Ký'))) {
-            t.classList.add('active');
-          }
-        });
-      }
-      document.getElementById('auth-login-form').style.display = tab === 'login' ? 'block' : 'none';
-      document.getElementById('auth-register-form').style.display = tab === 'register' ? 'block' : 'none';
-      document.getElementById('login-error').style.display = 'none';
-      document.getElementById('register-error').style.display = 'none';
-    }
-
-    async function doLogin() {
-      const email = document.getElementById('login-email').value.trim();
-      const password = document.getElementById('login-password').value;
-      const errEl = document.getElementById('login-error');
-      if (!email || !password) {
-        errEl.textContent = 'Vui lòng nhập email và mật khẩu.';
-        errEl.style.display = 'block';
-        return;
-      }
-      try {
-        const res = await fetch(`${API_BASE}/api/auth/login`, {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({email, password})
-        });
-        const json = await res.json();
-        if (json.success) {
-          loggedInAccount = json.data;
-          localStorage.setItem('mininetflix_account', JSON.stringify(loggedInAccount));
-          document.getElementById('auth-screen').classList.add('hidden');
-          await initApp();
-        } else {
-          errEl.textContent = json.message || 'Sai email hoặc mật khẩu.';
-          errEl.style.display = 'block';
-        }
-      } catch (e) {
-        errEl.textContent = 'Lỗi kết nối server: ' + e.message;
-        errEl.style.display = 'block';
-      }
-    }
-
-    async function doRegister() {
-      const email = document.getElementById('register-email').value.trim();
-      const password = document.getElementById('register-password').value;
-      const passwordConfirm = document.getElementById('register-password-confirm').value;
-      const tierId = parseInt(document.getElementById('register-tier').value);
-      const errEl = document.getElementById('register-error');
-
-      if (!email || !password) {
-        errEl.textContent = 'Vui lòng nhập đầy đủ email và mật khẩu.';
-        errEl.style.display = 'block';
-        return;
-      }
-      if (password !== passwordConfirm) {
-        errEl.textContent = 'Mật khẩu xác nhận không khớp.';
-        errEl.style.display = 'block';
-        return;
-      }
-      if (password.length < 4) {
-        errEl.textContent = 'Mật khẩu phải có ít nhất 4 ký tự.';
-        errEl.style.display = 'block';
-        return;
-      }
-
-      try {
-        const res = await fetch(`${API_BASE}/api/auth/register`, {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({email, password, tier_id: tierId})
-        });
-        const json = await res.json();
-        if (json.success) {
-          loggedInAccount = {account_id: json.data.account_id, email: json.data.email};
-          localStorage.setItem('mininetflix_account', JSON.stringify(loggedInAccount));
-          document.getElementById('auth-screen').classList.add('hidden');
-          showToast(json.message);
-          await initApp();
-        } else {
-          errEl.textContent = json.message || 'Đăng ký thất bại.';
-          errEl.style.display = 'block';
-        }
-      } catch (e) {
-        errEl.textContent = 'Lỗi kết nối server: ' + e.message;
-        errEl.style.display = 'block';
-      }
-    }
-
-    function doLogout() {
-      loggedInAccount = null;
-      activeProfile = null;
-      localStorage.removeItem('mininetflix_account');
-      document.getElementById('auth-screen').classList.remove('hidden');
-      document.getElementById('login-email').value = '';
-      document.getElementById('login-password').value = '';
-      switchAuthTab('login', null);
-    }
-
-    // ====== CARD MODAL FUNCTIONS ======
-    function openCardModal() {
-      if (!loggedInAccount) {
-        alert('Vui lòng đăng nhập trước.');
-        return;
-      }
-      cardModalAccountId = loggedInAccount.account_id;
-      document.getElementById('card-modal').style.display = 'flex';
-    }
-    function closeCardModal() {
-      document.getElementById('card-modal').style.display = 'none';
-    }
-    function formatCardNumber(input) {
-      let v = input.value.replace(/\s/g, '').replace(/\D/g, '');
-      v = v.match(/.{1,4}/g)?.join(' ') || v;
-      input.value = v;
-    }
-    async function submitCard() {
-      const holder = document.getElementById('card-holder').value.trim();
-      const number = document.getElementById('card-number').value.replace(/\s/g, '');
-      const expMonth = parseInt(document.getElementById('card-exp-month').value);
-      const expYear = parseInt(document.getElementById('card-exp-year').value);
-      const cvv = document.getElementById('card-cvv').value.trim();
-
-      if (!holder || number.length < 13 || !cvv) {
-        alert('Vui lòng nhập đầy đủ thông tin thẻ.');
-        return;
-      }
-      try {
-        const res = await fetch(`${API_BASE}/api/cards`, {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({
-            account_id: cardModalAccountId,
-            cardholder_name: holder,
-            card_number: number,
-            exp_month: expMonth,
-            exp_year: expYear,
-            cvv: cvv
-          })
-        });
-        const json = await res.json();
-        if (json.success) {
-          showToast(`Thẻ ${json.data.brand} ****${json.data.last_four} đã được đăng ký!`);
-          closeCardModal();
-        } else {
-          alert('Lỗi: ' + json.message);
-        }
-      } catch (e) {
-        alert('Lỗi kết nối: ' + e.message);
-      }
-    }
-
-    // ====== REACTIVATE ACCOUNT ======
-    async function reactivateAccount(accId) {
-      if (!confirm('Bạn muốn kích hoạt lại tài khoản này?')) return;
-      try {
-        const res = await fetch(`${API_BASE}/api/accounts/reactivate`, {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({account_id: parseInt(accId)})
-        });
-        const json = await res.json();
-        showToast(json.message);
-        await loadProfiles();
-        await loadAccounts();
-      } catch (e) {
-        showToast('Lỗi: ' + e.message);
-      }
-    }
-
-    // ====== INIT ======
     async function initApp() {
       await checkDbHealth();
       await loadProfiles();
       await loadCatalog();
       await loadAccounts();
-    }
-
-    // Check for saved login on page load
-    function checkSavedLogin() {
-      const saved = localStorage.getItem('mininetflix_account');
-      if (saved) {
-        try {
-          loggedInAccount = JSON.parse(saved);
-          document.getElementById('auth-screen').classList.add('hidden');
-          initApp();
-        } catch (e) {
-          localStorage.removeItem('mininetflix_account');
-        }
-      }
     }
 
     async function checkDbHealth() {
@@ -1670,18 +1286,13 @@
         const res = await fetch(`${API_BASE}/api/profiles`);
         const json = await res.json();
         if (json.success && json.data) {
-          // Filter profiles: show only logged-in account's profiles (if logged in)
-          if (loggedInAccount) {
-            profileStore = json.data.filter(p => p.account_id === loggedInAccount.account_id);
-          } else {
-            profileStore = json.data;
-          }
+          profileStore = json.data;
           const select = document.getElementById('profile-dropdown');
           select.innerHTML = '';
           profileStore.forEach(p => {
             const opt = document.createElement('option');
             opt.value = p.profile_id;
-            opt.textContent = `${p.profile_name}`;
+            opt.textContent = `${p.profile_name} (#${p.account_id})`;
             select.appendChild(opt);
           });
 
@@ -2001,11 +1612,9 @@
             const statusClass = `badge-${a.billing_status.toLowerCase()}`;
             let payBtn = '';
             if (a.billing_status === 'SUSPENDED') {
-              payBtn = `<button class="btn btn-white" style="padding:4px 8px; font-size:11px;" onclick="payBill(${a.account_id})">Thanh Toán Hoá Đơn</button>`;
+              payBtn = `<button class="btn btn-white" style="padding:4px 8px; font-size:11px;" onclick="payBill(${a.account_id})">Renew Past-Due Bill</button>`;
             } else if (a.billing_status === 'ACTIVE') {
-              payBtn = `<button class="btn btn-glass" style="padding:4px 8px; font-size:11px;" onclick="payBill(${a.account_id})">Gia Hạn +30 Ngày</button>`;
-            } else if (a.billing_status === 'CANCELLED') {
-              payBtn = `<button class="btn btn-white" style="padding:4px 8px; font-size:11px;" onclick="reactivateAccount(${a.account_id})">Kích Hoạt Lại</button>`;
+              payBtn = `<button class="btn btn-glass" style="padding:4px 8px; font-size:11px;" onclick="payBill(${a.account_id})">Prepay +30 Days</button>`;
             }
 
             html += `
@@ -2023,9 +1632,9 @@
                 <td><span class="badge-pill ${statusClass}">${a.billing_status}</span></td>
                 <td>${a.next_billing_date}</td>
                 <td><strong>${a.active_streams} / ${a.max_streams} streams</strong></td>
-                <td style="white-space:nowrap;">
+                <td>
                   ${payBtn}
-                  ${a.billing_status !== 'CANCELLED' ? `<button class="btn btn-border" style="padding:4px 8px; font-size:11px; margin-left:4px;" onclick="cancelAccount(${a.account_id})">Huỷ Gói</button>` : ''}
+                  ${a.billing_status !== 'CANCELLED' ? `<button class="btn btn-border" style="padding:4px 8px; font-size:11px; margin-left:4px;" onclick="cancelAccount(${a.account_id})">Cancel Plan</button>` : ''}
                 </td>
               </tr>
             `;
@@ -2192,10 +1801,7 @@
 
     // Create Profile Modal
     function openNewProfileModal() {
-      if (!loggedInAccount && !activeProfile) {
-        alert('Vui lòng đăng nhập trước.');
-        return;
-      }
+      if (!activeProfile) return;
       document.getElementById('create-profile-modal').style.display = 'flex';
     }
     function closeNewProfileModal() {
@@ -2208,14 +1814,12 @@
         alert('Please enter a profile name.');
         return;
       }
-      const accId = activeProfile ? activeProfile.account_id : (loggedInAccount ? loggedInAccount.account_id : null);
-      if (!accId) { alert('Không tìm thấy tài khoản.'); return; }
       try {
         const res = await fetch(`${API_BASE}/api/profiles`, {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({
-            account_id: accId,
+            account_id: activeProfile.account_id,
             profile_name: name,
             is_kids_profile: isKids
           })
@@ -2365,20 +1969,7 @@
       setTimeout(() => { t.style.display = 'none'; }, 3500);
     }
 
-    // Add Enter key support for login/register forms
-    document.addEventListener('keydown', function(e) {
-      if (e.key === 'Enter') {
-        if (document.getElementById('auth-login-form').style.display !== 'none' &&
-            !document.getElementById('auth-screen').classList.contains('hidden')) {
-          doLogin();
-        } else if (document.getElementById('auth-register-form').style.display !== 'none' &&
-                   !document.getElementById('auth-screen').classList.contains('hidden')) {
-          doRegister();
-        }
-      }
-    });
-
-    window.addEventListener('DOMContentLoaded', checkSavedLogin);
+    window.addEventListener('DOMContentLoaded', initApp);
   </script>
 </body>
 </html>
