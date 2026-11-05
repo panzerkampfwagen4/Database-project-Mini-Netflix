@@ -915,12 +915,6 @@
         <input type="email" id="register-email" class="auth-input" placeholder="Email">
         <input type="password" id="register-password" class="auth-input" placeholder="Mật khẩu">
         <input type="password" id="register-password-confirm" class="auth-input" placeholder="Xác nhận mật khẩu">
-        <select id="register-tier" class="auth-input" style="cursor:pointer;">
-          <option value="0">Free ($0.00/tháng - 1 Stream, 480p)</option>
-          <option value="1">Basic ($9.99/tháng - 1 Stream, 720p)</option>
-          <option value="2" selected>Standard ($15.49/tháng - 2 Streams, 1080p)</option>
-          <option value="3">Premium ($19.99/tháng - 4 Streams, 4K UHD)</option>
-        </select>
         <button class="auth-submit" onclick="doRegister()">Đăng Ký</button>
         <p style="color:#737373; font-size:13px; margin-top:16px;">Đã có tài khoản? <a href="#" style="color:#FFF; text-decoration:none;" onclick="switchAuthTab('login', null)">Đăng nhập</a></p>
       </div>
@@ -1508,7 +1502,7 @@
       const email = document.getElementById('register-email').value.trim();
       const password = document.getElementById('register-password').value;
       const passwordConfirm = document.getElementById('register-password-confirm').value;
-      const tierId = parseInt(document.getElementById('register-tier').value);
+      const tierId = 0; // Mặc định Free, đăng ký gói sau khi đăng nhập
       const errEl = document.getElementById('register-error');
 
       if (!email || !password) {
