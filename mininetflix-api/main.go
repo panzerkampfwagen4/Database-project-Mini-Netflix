@@ -98,20 +98,8 @@ type CreateProfileRequest struct {
 }
 
 type CreateAccountRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password,omitempty"`
-	TierID   int    `json:"tier_id"`
-}
-
-type LoginRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
-}
-
-type LoginResponse struct {
-	AccountID int    `json:"account_id"`
-	Email     string `json:"email"`
-	TierName  string `json:"tier_name"`
+	Email  string `json:"email"`
+	TierID int    `json:"tier_id"`
 }
 
 type UpdateTierRequest struct {
@@ -1157,134 +1145,6 @@ func cancelAccountHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// 13. POST /api/auth/login: Simple email-based login (school project - no bcrypt)
-func loginHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
-		return
-	}
-	var req LoginRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "Invalid JSON")
-		return
-	}
-	if req.Email == "" || req.Password == "" {
-		writeError(w, http.StatusBadRequest, "Email and password are required")
-		return
-	}
-
-	var accID int
-	var email, tierName, storedHash string
-	err := db.QueryRow(`
-		SELECT a.account_id, a.email, st.tier_name, a.password_hash
-		FROM account a
-		JOIN subscription_tier st ON a.current_tier_id = st.tier_id
-		WHERE a.email = ?
-	`, req.Email).Scan(&accID, &email, &tierName, &storedHash)
-	if err == sql.ErrNoRows {
-		writeError(w, http.StatusUnauthorized, "Invalid email or password")
-		return
-	} else if err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("Login query failed: %v", err))
-		return
-	}
-
-	// Simple password check: compare raw password with stored hash
-	// For school project, we store passwords as-is or accept the mock hash
-	if storedHash != req.Password && storedHash != "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy" {
-		writeError(w, http.StatusUnauthorized, "Invalid email or password")
-		return
-	}
-
-	writeJSON(w, http.StatusOK, APIResponse{
-		Success: true,
-		Message: "Login successful",
-		Data:    LoginResponse{AccountID: accID, Email: email, TierName: tierName},
-	})
-}
-
-// 14. POST /api/auth/register: Create new user account with password
-func registerHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
-		return
-	}
-	var req CreateAccountRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "Invalid JSON")
-		return
-	}
-	if req.Email == "" || req.Password == "" {
-		writeError(w, http.StatusBadRequest, "Email and password are required")
-		return
-	}
-
-	// For school project: store password as-is (no bcrypt dependency needed)
-	res, err := db.Exec(`
-		INSERT INTO account (email, password_hash, billing_status, current_tier_id, registration_date, next_billing_date)
-		VALUES (?, ?, 'ACTIVE', ?, CURRENT_DATE, DATE_ADD(CURRENT_DATE, INTERVAL 30 DAY))
-	`, req.Email, req.Password, req.TierID)
-	if err != nil {
-		res, err = db.Exec(`
-			INSERT INTO account (email, password_hash, billing_status, current_tier_id, registration_date, next_billing_date)
-			VALUES (?, ?, 'Active', ?, CURRENT_DATE, DATE_ADD(CURRENT_DATE, INTERVAL 30 DAY))
-		`, req.Email, req.Password, req.TierID)
-	}
-	if err != nil {
-		if strings.Contains(err.Error(), "Duplicate") || strings.Contains(err.Error(), "uk_account_email") {
-			writeError(w, http.StatusConflict, "Email already registered")
-			return
-		}
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("Registration failed: %v", err))
-		return
-	}
-
-	accID, _ := res.LastInsertId()
-	defaultName := strings.Split(req.Email, "@")[0]
-	_, _ = db.Exec(`INSERT INTO profile (account_id, profile_name, is_kids_profile) VALUES (?, ?, FALSE)`, accID, defaultName)
-
-	writeJSON(w, http.StatusCreated, APIResponse{
-		Success: true,
-		Message: fmt.Sprintf("Account registered successfully! Welcome, %s", defaultName),
-		Data:    map[string]any{"account_id": accID, "email": req.Email},
-	})
-}
-
-// 15. POST /api/accounts/reactivate: Reactivate a CANCELLED account
-func reactivateAccountHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
-		return
-	}
-	var req AccountActionRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "Invalid JSON")
-		return
-	}
-
-	_, err := db.Exec(`
-		UPDATE account
-		SET billing_status = 'ACTIVE', cancelled_at = NULL, next_billing_date = DATE_ADD(CURRENT_DATE, INTERVAL 30 DAY)
-		WHERE account_id = ?
-	`, req.AccountID)
-	if err != nil {
-		_, err = db.Exec(`
-			UPDATE account
-			SET billing_status = 'Active', cancelled_at = NULL, next_billing_date = DATE_ADD(CURRENT_DATE, INTERVAL 30 DAY)
-			WHERE account_id = ?
-		`, req.AccountID)
-	}
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	writeJSON(w, http.StatusOK, APIResponse{
-		Success: true,
-		Message: fmt.Sprintf("Account #%d has been reactivated. Welcome back!", req.AccountID),
-	})
-}
-
 // ============================================================================
 // Server Initialization
 // ============================================================================
@@ -1334,16 +1194,11 @@ func main() {
 	mux.HandleFunc("/api/sessions/stop-all", stopAllSessionsHandler)
 	mux.HandleFunc("/api/history/progress", historyProgressHandler)
 
-	// Authentication Routes
-	mux.HandleFunc("/api/auth/login", loginHandler)
-	mux.HandleFunc("/api/auth/register", registerHandler)
-
 	// Billing, Accounts & Tokenized Cards Routes
 	mux.HandleFunc("/api/accounts", accountsHandler)
 	mux.HandleFunc("/api/accounts/tier", updateAccountTierHandler)
 	mux.HandleFunc("/api/accounts/pay", payAccountInvoiceHandler)
 	mux.HandleFunc("/api/accounts/cancel", cancelAccountHandler)
-	mux.HandleFunc("/api/accounts/reactivate", reactivateAccountHandler)
 	mux.HandleFunc("/api/cards", registerCardHandler)
 
 	server := &http.Server{
