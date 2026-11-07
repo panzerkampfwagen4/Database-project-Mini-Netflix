@@ -564,6 +564,39 @@ func profilesHandler(w http.ResponseWriter, r *http.Request) {
 			Data:    map[string]any{"profile_id": profileID, "profile_name": req.ProfileName},
 		})
 
+	case http.MethodDelete:
+		profileIDStr := r.URL.Query().Get("profile_id")
+		accountIDStr := r.URL.Query().Get("account_id")
+
+		if profileIDStr == "" || accountIDStr == "" {
+			writeError(w, http.StatusBadRequest, "Missing profile_id or account_id parameter")
+			return
+		}
+
+		// Optional check: verify caller ownership if X-Account-ID header is supplied
+		callerAccountID := r.Header.Get("X-Account-ID")
+		if callerAccountID != "" && callerAccountID != accountIDStr {
+			writeError(w, http.StatusForbidden, "Forbidden: cannot delete profile of another account")
+			return
+		}
+
+		res, err := db.Exec("DELETE FROM profile WHERE profile_id = ? AND account_id = ?", profileIDStr, accountIDStr)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to delete profile: %v", err))
+			return
+		}
+
+		rowsAffected, _ := res.RowsAffected()
+		if rowsAffected == 0 {
+			writeError(w, http.StatusNotFound, "Profile not found or already deleted")
+			return
+		}
+
+		writeJSON(w, http.StatusOK, APIResponse{
+			Success: true,
+			Message: "Profile deleted successfully",
+		})
+
 	default:
 		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
 	}
@@ -929,10 +962,16 @@ func cardsHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		var isActive bool
-		err := db.QueryRow("SELECT EXISTS(SELECT 1 FROM account WHERE account_id = ? AND UPPER(billing_status) != 'CANCELLED')", accountIDStr).Scan(&isActive)
-		if err != nil || !isActive {
-			writeError(w, http.StatusForbidden, "Unauthorized access to account payment records")
+		// 1. Authenticate caller identity from the request header/session
+		callerAccountID := r.Header.Get("X-Account-ID")
+		if callerAccountID == "" {
+			writeError(w, http.StatusUnauthorized, "Authentication required: missing session credentials")
+			return
+		}
+
+		// 2. Authorize: verify the caller owns the account being accessed (prevents IDOR)
+		if callerAccountID != accountIDStr {
+			writeError(w, http.StatusForbidden, "Access denied: you cannot view payment methods for another account")
 			return
 		}
 
@@ -980,9 +1019,41 @@ func cardsHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		callerAccountID := r.Header.Get("X-Account-ID")
+		if callerAccountID == "" {
+			writeError(w, http.StatusUnauthorized, "Authentication required")
+			return
+		}
+
+		if callerAccountID != strconv.Itoa(req.AccountID) {
+			writeError(w, http.StatusForbidden, "Forbidden: cannot register a payment method for another account")
+			return
+		}
+
 		cleanNumber := strings.ReplaceAll(req.CardNumber, " ", "")
-		if len(cleanNumber) < 4 {
-			writeError(w, http.StatusBadRequest, "Invalid card length")
+		cleanCVV := strings.TrimSpace(req.CVV)
+
+		isDigitsOnly := func(s string) bool {
+			for _, r := range s {
+				if r < '0' || r > '9' {
+					return false
+				}
+			}
+			return len(s) > 0
+		}
+
+		if len(cleanNumber) < 13 || len(cleanNumber) > 19 || !isDigitsOnly(cleanNumber) {
+			writeError(w, http.StatusBadRequest, "Invalid card number: must contain only digits (13-19 digits)")
+			return
+		}
+
+		if req.ExpMonth < 1 || req.ExpMonth > 12 {
+			writeError(w, http.StatusBadRequest, "Invalid expiration month (1-12)")
+			return
+		}
+
+		if len(cleanCVV) < 3 || len(cleanCVV) > 4 || !isDigitsOnly(cleanCVV) {
+			writeError(w, http.StatusBadRequest, "Invalid CVV: must be 3 or 4 digits")
 			return
 		}
 		lastFour := cleanNumber[len(cleanNumber)-4:]
@@ -1026,15 +1097,35 @@ func cardsHandler(w http.ResponseWriter, r *http.Request) {
 	case http.MethodDelete:
 		cardIDStr := r.URL.Query().Get("card_id")
 		accountIDStr := r.URL.Query().Get("account_id")
+		callerAccountID := r.Header.Get("X-Account-ID")
+
 		if cardIDStr == "" || accountIDStr == "" {
 			writeError(w, http.StatusBadRequest, "Missing card_id or account_id parameter")
 			return
 		}
-		_, err := db.Exec("DELETE FROM credit_card WHERE card_id = ? AND account_id = ?", cardIDStr, accountIDStr)
+
+   		 if callerAccountID == "" {
+        	writeError(w, http.StatusUnauthorized, "Authentication required: missing session credentials")
+        	return
+    	}
+
+		if callerAccountID == "" || callerAccountID != accountIDStr {
+        	writeError(w, http.StatusForbidden, "Unauthorized to delete payment method")
+        	return
+    	}
+
+		res, err := db.Exec("DELETE FROM credit_card WHERE card_id = ? AND account_id = ?", cardIDStr, accountIDStr)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
+
+		rowsAffected, _ := res.RowsAffected()
+		if rowsAffected == 0 {
+			writeError(w, http.StatusNotFound, "Card not found or does not belong to this account")
+			return
+		}
+
 		writeJSON(w, http.StatusOK, APIResponse{Success: true, Message: "Đã xóa phương thức thanh toán thành công!"})
 
 	default:
