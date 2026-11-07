@@ -794,7 +794,7 @@
             select.innerHTML = '';
 
             // Filter to only display profiles belonging to the active account
-            const userProfiles = profileStore.filter(p => p.account_id === activeAccountId);
+            const userProfiles = profileStore.filter(p => p.account_id === (activeProfile?.account_id ?? profileStore[0]?.account_id));
 
             userProfiles.forEach(p => {
             const opt = document.createElement('option');
