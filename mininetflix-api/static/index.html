@@ -803,10 +803,10 @@
             opt.textContent = `${p.profile_name}${p.is_kids_profile ? ' (Kids)' : ''}`;
             select.appendChild(opt);
             });
-          if (!activeProfile && profileStore.length > 0) {
-            activeProfile = profileStore[0];
+          if (!activeProfile && userProfiles.length > 0) {
+            activeProfile = userProfiles[0];
           } else if (activeProfile) {
-            activeProfile = profileStore.find(p => p.profile_id === activeProfile.profile_id) || profileStore[0];
+            activeProfile = userProfiles.find(p => p.profile_id === activeProfile.profile_id) || userProfiles[0];
           }
           renderProfileHeaderContext();
           renderStreamCounter();
