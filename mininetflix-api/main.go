@@ -929,8 +929,15 @@ func cardsHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		var isActive bool
+		err := db.QueryRow("SELECT EXISTS(SELECT 1 FROM account WHERE account_id = ? AND UPPER(billing_status) != 'CANCELLED')", accountIDStr).Scan(&isActive)
+		if err != nil || !isActive {
+			writeError(w, http.StatusForbidden, "Unauthorized access to account payment records")
+			return
+		}
+
 		rows, err := db.Query(`
-			SELECT card_id, account_id, cardholder_name, card_brand, last_four, exp_month, exp_year, payment_token
+			SELECT card_id, account_id, cardholder_name, card_brand, last_four, exp_month, exp_year
 			FROM credit_card
 			WHERE account_id = ?
 			ORDER BY card_id DESC
@@ -949,13 +956,12 @@ func cardsHandler(w http.ResponseWriter, r *http.Request) {
 			LastFour       string `json:"last_four"`
 			ExpMonth       int    `json:"exp_month"`
 			ExpYear        int    `json:"exp_year"`
-			PaymentToken   string `json:"payment_token"`
 		}
 
 		cards := make([]CardDTO, 0)
 		for rows.Next() {
 			var c CardDTO
-			if err := rows.Scan(&c.CardID, &c.AccountID, &c.CardholderName, &c.CardBrand, &c.LastFour, &c.ExpMonth, &c.ExpYear, &c.PaymentToken); err != nil {
+			if err := rows.Scan(&c.CardID, &c.AccountID, &c.CardholderName, &c.CardBrand, &c.LastFour, &c.ExpMonth, &c.ExpYear); err != nil {
 				writeError(w, http.StatusInternalServerError, err.Error())
 				return
 			}

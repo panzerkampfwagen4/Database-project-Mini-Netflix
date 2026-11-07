@@ -612,6 +612,7 @@
           <tr><td><strong style="color:var(--accent-green)">POST</strong></td><td><code>/api/sessions/start</code></td><td>Start streaming (audits BR-02 stream threshold)</td></tr>
           <tr><td><strong style="color:var(--netflix-red)">POST</strong></td><td><code>/api/sessions/stop</code></td><td>Terminate session and release concurrency slot</td></tr>
           <tr><td><strong style="color:#66b2ff">GET / POST</strong></td><td><code>/api/watchlist</code></td><td>Toggle title in profile-isolated watchlist</td></tr>
+          <tr><td><strong style="color:var(--accent-green)">POST</strong></td><td><code>/api/ratings</code></td><td>Submit or update media rating score (requires prior watch session)</td></tr>
           <tr><td><strong style="color:#66b2ff">GET / POST / DEL</strong></td><td><code>/api/cards</code></td><td>Tokenize and manage credit cards (PCI-DSS vault simulation)</td></tr>
           <tr><td><strong style="color:#66b2ff">GET / POST</strong></td><td><code>/api/accounts</code></td><td>Query and create customer accounts</td></tr>
           <tr><td><strong style="color:var(--accent-green)">POST</strong></td><td><code>/api/accounts/tier</code></td><td>Upgrade / Downgrade subscription tier</td></tr>
@@ -747,6 +748,16 @@
     let heroFeaturedItem = null;
     let showAdminTable = false;
 
+    function escapeHtml(str) {
+   if (str === null || str === undefined) return '';
+      return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+    }
+
     const planCatalog = [
       { id: 0, name: 'Free', price: '$0.00', streams: 1, quality: '480p SD', desc: 'Xem thử các nội dung miễn phí giới hạn.' },
       { id: 1, name: 'Basic', price: '$9.99', streams: 1, quality: '720p HD', desc: 'Chất lượng HD tiêu chuẩn cho 1 thiết bị.' },
@@ -775,18 +786,23 @@
 
     async function fetchProfiles() {
       try {
-        const res = await fetch('/api/profiles');
-        const json = await res.json();
-        if (json.success && json.data) {
-          profileStore = json.data;
-          const select = document.getElementById('profile-select-dropdown');
-          select.innerHTML = '';
-          profileStore.forEach(p => {
+            const res = await fetch('/api/profiles');
+            const json = await res.json();
+            if (json.success && json.data) {
+            profileStore = json.data;
+            const select = document.getElementById('profile-select-dropdown');
+            select.innerHTML = '';
+
+            // Filter to only display profiles belonging to the active account
+            const userProfiles = profileStore.filter(p => p.account_id === activeAccountId);
+
+            userProfiles.forEach(p => {
             const opt = document.createElement('option');
             opt.value = p.profile_id;
-            opt.textContent = `${p.profile_name} (Acc #${p.account_id}: ${p.tier_name}${p.is_kids_profile ? ' - Kids' : ''})`;
+            // Show clean profile name + Kids indicator if applicable
+            opt.textContent = `${p.profile_name}${p.is_kids_profile ? ' (Kids)' : ''}`;
             select.appendChild(opt);
-          });
+            });
           if (!activeProfile && profileStore.length > 0) {
             activeProfile = profileStore[0];
           } else if (activeProfile) {
@@ -1057,6 +1073,22 @@
         console.error('Error fetching accounts:', err);
       }
     }
+    
+    async function reactivateAccount(accId) {
+      try {
+        const res = await fetch('/api/accounts/reactivate', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ account_id: parseInt(accId) })
+        });
+        const json = await res.json();
+        notifyToast(json.message);
+        await fetchProfiles();
+        await fetchAccounts();
+      } catch (e) {
+        notifyToast('Lỗi kích hoạt lại: ' + e.message);
+      }
+    }
 
     function renderAccountView() {
       if (!activeProfile) return;
@@ -1074,9 +1106,14 @@
       // 1. Personal Overview Hero
       const statusPillClass = `pill-${account.billing_status.toLowerCase()}`;
       const personalPanel = document.getElementById('personal-account-panel');
-      let renewalBtn = `<button class="btn btn-secondary" onclick="payInvoice(${account.account_id})">Gia Hạn / Trả Trước (+30 Ngày)</button>`;
-      if (account.billing_status === 'SUSPENDED') {
+      let renewalBtn = '';
+
+      if (account.billing_status === 'CANCELLED') {
+        renewalBtn = `<button class="btn btn-danger" onclick="reactivateAccount(${account.account_id})">Kích Hoạt Lại Gói (Reactivate)</button>`;
+      } else if (account.billing_status === 'SUSPENDED') {
         renewalBtn = `<button class="btn btn-danger" onclick="payInvoice(${account.account_id})">Thanh Toán Nợ Quá Hạn (Kích Hoạt Lại)</button>`;
+      } else {
+        renewalBtn = `<button class="btn btn-secondary" onclick="payInvoice(${account.account_id})">Gia Hạn / Trả Trước (+30 Ngày)</button>`;
       }
 
       personalPanel.innerHTML = `
@@ -1084,7 +1121,7 @@
           <div class="account-meta-col">
             <span style="font-size:11px; text-transform:uppercase; color:#888; letter-spacing:0.8px; font-weight:700;">Tài Khoản Đang Đăng Nhập</span>
             <div class="account-email-heading">
-              ${account.email}
+              ${escapeHtml(account.email)}
               <span class="context-pill ${statusPillClass}">${account.billing_status}</span>
             </div>
             <div class="account-info-sub">
@@ -1162,15 +1199,15 @@
           cardDiv.className = 'saved-card-box';
           cardDiv.innerHTML = `
             <div class="card-top-row">
-              <span class="card-brand-badge">${c.card_brand}</span>
+              <span class="card-brand-badge">${escapeHtml(c.card_brand)}</span>
               <button class="btn btn-outline" style="padding:2px 8px; font-size:11px;" onclick="deleteCard(${c.card_id}, ${c.account_id})">Xóa</button>
             </div>
-            <div class="card-digits">&bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull; ${c.last_four}</div>
+            <div class="card-digits">&bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull; ${escapeHtml(c.last_four)}</div>
             <div style="display:flex; justify-content:space-between; font-size:12px; color:#AAA;">
-              <span>${c.cardholder_name}</span>
+              <span>${escapeHtml(c.cardholder_name)}</span>
               <span>Exp: ${c.exp_month < 10 ? '0' + c.exp_month : c.exp_month}/${c.exp_year}</span>
             </div>
-            <div class="token-hash" title="${c.payment_token}">Token: ${c.payment_token.substring(0, 18)}... (Vault OK)</div>
+            <div class="token-hash">Card Vault Protected (PCI-DSS Compliant)</div>
           `;
           container.appendChild(cardDiv);
         });
@@ -1204,16 +1241,20 @@
       `;
       accountsStore.forEach(a => {
         const statusClass = `pill-${a.billing_status.toLowerCase()}`;
+        let actionBtn = `<button class="btn btn-secondary" style="padding:3px 8px; font-size:11px;" onclick="payInvoice(${a.account_id})">Gia Hạn</button>`;
+        if (a.billing_status === 'CANCELLED') {
+          actionBtn = `<button class="btn btn-danger" style="padding:3px 8px; font-size:11px;" onclick="reactivateAccount(${a.account_id})">Kích Hoạt Lại</button>`;
+        }
         html += `
           <tr>
             <td><b>#${a.account_id}</b></td>
-            <td>${a.email}</td>
+            <td>${escapeHtml(a.email)}</td>
             <td>${a.tier_name} ($${a.monthly_price})</td>
             <td><span class="context-pill ${statusClass}">${a.billing_status}</span></td>
             <td>${a.next_billing_date}</td>
             <td><strong>${a.active_streams} / ${a.max_streams} streams</strong></td>
             <td>
-              <button class="btn btn-secondary" style="padding:3px 8px; font-size:11px;" onclick="payInvoice(${a.account_id})">Gia Hạn</button>
+              ${actionBtn}
             </td>
           </tr>
         `;
@@ -1494,20 +1535,60 @@
       box.style.display = 'block';
       box.textContent = '[EXEC] Auditing BR-02: Concurrency cap test on Bob (Account #2, Max 2 Streams)...';
       let log = `> Target: Account #2 (Standard Plan, Concurrency Cap: 2)\n`;
-      for (let i = 1; i <= 3; i++) {
-        const res = await fetch('/api/sessions/start', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({
-            account_id: 2,
-            profile_id: 4,
-            device_fingerprint: `benchmark-dev-${i}`
-          })
-        });
-        const json = await res.json();
-        log += `> Stream #${i} -> HTTP ${res.status}: ${json.message}\n`;
+      
+      const createdSessions = [];
+      let conflictEnforced = false;
+      let successCount = 0;
+
+      try {
+        for (let i = 1; i <= 3; i++) {
+          const res = await fetch('/api/sessions/start', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+              account_id: 2,
+              profile_id: 4,
+              device_fingerprint: `benchmark-dev-${i}`
+            })
+          });
+          const json = await res.json();
+          log += `> Stream #${i} -> HTTP ${res.status}: ${json.message}\n`;
+
+          if (res.status === 200 || res.status === 201) {
+            successCount++;
+            if (json.data && json.data.session_id) {
+              createdSessions.push(json.data.session_id);
+            }
+          } else if (res.status === 409) {
+            conflictEnforced = true;
+          }
+        }
+
+        // Conditional assertion: pass only if limit was reached and then rejected with 409
+        if (successCount === 2 && conflictEnforced) {
+          log += `> STATUS: VERIFIED PASSED [409 CONFLICT ENFORCED]\n`;
+        } else {
+          log += `> STATUS: FAILED (Expected 2 successful streams followed by 1 HTTP 409 Conflict)\n`;
+        }
+      } catch (err) {
+        log += `> EXECUTION ERROR: ${err.message}\n`;
+      } finally {
+        // Cleanup test sessions so Bob's account is not locked
+        if (createdSessions.length > 0) {
+          log += `> [CLEANUP] Releasing ${createdSessions.length} test stream slots...\n`;
+          for (const sId of createdSessions) {
+            await fetch('/api/sessions/stop', {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({ session_id: sId })
+            });
+          }
+          log += `> [CLEANUP] All test slots freed successfully.`;
+        }
+        await fetchProfiles();
+        renderStreamCounter();
       }
-      log += `> STATUS: VERIFIED PASSED [409 CONFLICT ENFORCED]`;
+
       box.textContent = log;
     }
 
@@ -1515,13 +1596,67 @@
       const box = document.getElementById('console-br03');
       box.style.display = 'block';
       box.textContent = '[EXEC] Auditing BR-03: Profile data partitioning...';
-      const res1 = await fetch('/api/watchlist?profile_id=1');
-      const json1 = await res1.json();
-      const res2 = await fetch('/api/watchlist?profile_id=4');
-      const json2 = await res2.json();
-      let log = `> Profile #1 (Alice) Watchlist Count: ${json1.count}\n`;
-      log += `> Profile #4 (Bob) Watchlist Count: ${json2.count}\n`;
-      log += `> STATUS: VERIFIED PASSED [ISOLATION PRESERVED]\nPartitioned via composite primary key (profile_id, title_id).`;
+
+      let log = `> Auditing Profile Data Partitioning (Composite PK: profile_id + title_id)\n`;
+      const testTitleId = '80203147'; // Dick Johnson Is Dead
+
+      try {
+        // 1. Fetch initial states
+        const res1 = await fetch('/api/watchlist?profile_id=1');
+        const json1 = await res1.json();
+        const res2 = await fetch('/api/watchlist?profile_id=4');
+        const json2 = await res2.json();
+
+        if (!res1.ok || !json1.success || !res2.ok || !json2.success) {
+          throw new Error('Failed to fetch initial watchlists for Profile #1 or Profile #4');
+        }
+
+        const titles1 = (json1.data || []).map(t => t.title_id);
+        const titles2 = (json2.data || []).map(t => t.title_id);
+
+        log += `> Profile #1 (Alice) Titles: [${titles1.join(', ')}] (Count: ${json1.count})\n`;
+        log += `> Profile #4 (Bob) Titles:   [${titles2.join(', ')}] (Count: ${json2.count})\n`;
+
+        // 2. Active Isolation Proof: Ensure test title is added to Profile #1
+        let addedToP1 = false;
+        if (!titles1.includes(testTitleId)) {
+          await fetch('/api/watchlist', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ profile_id: 1, title_id: testTitleId })
+          });
+          addedToP1 = true;
+          log += `> [MUTATION] Added title '${testTitleId}' to Profile #1\n`;
+        }
+
+        // 3. Verify Profile #4 remains isolated and unaffected
+        const verifyRes2 = await fetch('/api/watchlist?profile_id=4');
+        const verifyJson2 = await verifyRes2.json();
+        const updatedTitles2 = (verifyJson2.data || []).map(t => t.title_id);
+        const isLeaked = updatedTitles2.includes(testTitleId);
+
+        log += `> [VERIFY] Checked Profile #4 for title '${testTitleId}' -> ${isLeaked ? 'LEAKED!' : 'NOT FOUND (ISOLATED)'}\n`;
+
+        // 4. Teardown: revert mutation on Profile #1 if we added it
+        if (addedToP1) {
+          await fetch('/api/watchlist', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ profile_id: 1, title_id: testTitleId })
+          });
+          log += `> [CLEANUP] Reverted test title from Profile #1\n`;
+        }
+
+        // 5. Assertion
+        if (!isLeaked) {
+          log += `> STATUS: VERIFIED PASSED [ISOLATION PRESERVED]\n> Partitioning confirmed: mutations on Profile #1 do not cross-contaminate Profile #4.`;
+        } else {
+          log += `> STATUS: FAILED (Data leakage detected across profile boundaries)`;
+        }
+      } catch (err) {
+        log += `> EXECUTION ERROR: ${err.message}\n> STATUS: FAILED`;
+      }
+
       box.textContent = log;
     }
 
@@ -1529,39 +1664,91 @@
       const box = document.getElementById('console-br04');
       box.style.display = 'block';
       box.textContent = '[EXEC] Auditing BR-04: Scanning Kids Profile content classifications...';
-      const resKids = await fetch('/api/catalog?profile_id=2');
-      const jsonKids = await resKids.json();
-      const restricted = (jsonKids.data || []).filter(i => i.maturity_rating === 'R' || i.maturity_rating === 'NC-17');
-      let log = `> Catalog Count for Alice Junior (Kids): ${jsonKids.count}\n`;
-      log += `> Adult Titles (R / NC-17) Detected: ${restricted.length}\n`;
-      if (restricted.length === 0) {
-        log += `> STATUS: VERIFIED PASSED [0% LEAKAGE]\nAll mature classifications strictly eliminated.`;
-      } else {
-        log += `> STATUS: FAILED`;
+
+      try {
+        const resKids = await fetch('/api/catalog?profile_id=2');
+        const jsonKids = await resKids.json();
+
+        // 1. Guard against HTTP or API errors
+        if (!resKids.ok || !jsonKids.success || !Array.isArray(jsonKids.data)) {
+          box.textContent = `> STATUS: FAILED [HTTP ${resKids.status}: ${jsonKids.message || 'Catalog query error'}]`;
+          return;
+        }
+
+        // 2. Filter mature titles
+        const restricted = jsonKids.data.filter(i => i.maturity_rating === 'R' || i.maturity_rating === 'NC-17');
+
+        let log = `> Catalog Count for Alice Junior (Kids): ${jsonKids.count}\n`;
+        log += `> Adult Titles (R / NC-17) Detected: ${restricted.length}\n`;
+
+        // 3. Ensure we actually evaluated titles AND none were mature
+        if (jsonKids.count > 0 && restricted.length === 0) {
+          log += `> STATUS: VERIFIED PASSED [0% LEAKAGE]\nAll mature classifications strictly eliminated.`;
+        } else if (jsonKids.count === 0) {
+          log += `> STATUS: FAILED (Catalog returned 0 items for Kids profile)`;
+        } else {
+          log += `> STATUS: FAILED (Found ${restricted.length} mature titles leaking into Kids profile)`;
+        }
+
+        box.textContent = log;
+      } catch (err) {
+        box.textContent = `> EXECUTION ERROR: ${err.message}\n> STATUS: FAILED`;
       }
-      box.textContent = log;
     }
 
     async function runAuditBR05() {
       const box = document.getElementById('console-br05');
       box.style.display = 'block';
       box.textContent = '[EXEC] Auditing BR-05: Account profile threshold limit (<= 5)...';
-      let log = `> Target: Account #1 (Currently has active profiles)\n`;
-      for (let i = 1; i <= 3; i++) {
-        const res = await fetch('/api/profiles', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({
-            account_id: 1,
-            profile_name: `Temp Profile ${Date.now().toString().slice(-4)}`,
-            is_kids_profile: false
-          })
-        });
-        const json = await res.json();
-        log += `> Profile Add Attempt #${i} -> HTTP ${res.status}: ${json.message}\n`;
-        if (res.status === 409) break;
+      let log = `> Target: Account #1 (Max 5 Profiles Allowed)\n`;
+
+      const createdProfileIds = [];
+      let conflictEnforced = false;
+
+      try {
+        for (let i = 1; i <= 3; i++) {
+          const res = await fetch('/api/profiles', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+              account_id: 1,
+              profile_name: `AuditSlot_${i}_${Date.now().toString().slice(-4)}`,
+              is_kids_profile: false
+            })
+          });
+          const json = await res.json();
+          log += `> Profile Add Attempt #${i} -> HTTP ${res.status}: ${json.message}\n`;
+
+          if (res.status === 201 && json.data && json.data.profile_id) {
+            createdProfileIds.push(json.data.profile_id);
+          } else if (res.status === 409) {
+            conflictEnforced = true;
+            break;
+          }
+        }
+
+        // Conditional assertion
+        if (conflictEnforced) {
+          log += `> STATUS: VERIFIED PASSED [409 CONFLICT ENFORCED]\n`;
+        } else {
+          log += `> STATUS: FAILED (Expected HTTP 409 Profile Limit Conflict was not observed)\n`;
+        }
+      } catch (err) {
+        log += `> EXECUTION ERROR: ${err.message}\n> STATUS: FAILED\n`;
+      } finally {
+        // Teardown: Clean up temporary test profiles created during the audit
+        if (createdProfileIds.length > 0) {
+          log += `> [CLEANUP] Removing ${createdProfileIds.length} temporary audit profiles...\n`;
+          for (const pid of createdProfileIds) {
+            await fetch(`/api/profiles?profile_id=${pid}&account_id=1`, {
+              method: 'DELETE'
+            }).catch(() => {});
+          }
+          log += `> [CLEANUP] Account #1 profile slots restored.\n`;
+        }
+        await fetchProfiles();
       }
-      log += `> STATUS: VERIFIED PASSED [409 CONFLICT ENFORCED]`;
+
       box.textContent = log;
     }
 
