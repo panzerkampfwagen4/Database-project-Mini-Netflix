@@ -900,8 +900,8 @@
             </div>
             <div class="card-body">
               <div>
-                <h3 class="card-title">${item.title_name}</h3>
-                <p class="card-synopsis">${item.synopsis || 'Chưa có mô tả.'}</p>
+                <h3 class="card-title">${escapeHtml(item.title_name)}</h3>
+                <p class="card-synopsis">${escapeHtml(item.synopsis || 'Chưa có mô tả.')}</p>
               </div>
               <div class="card-actions-row">
                 <button class="btn btn-play btn-icon-label" onclick="startStream('${item.title_id}')">
