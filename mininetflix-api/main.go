@@ -564,6 +564,39 @@ func profilesHandler(w http.ResponseWriter, r *http.Request) {
 			Data:    map[string]any{"profile_id": profileID, "profile_name": req.ProfileName},
 		})
 
+	case http.MethodDelete:
+		profileIDStr := r.URL.Query().Get("profile_id")
+		accountIDStr := r.URL.Query().Get("account_id")
+
+		if profileIDStr == "" || accountIDStr == "" {
+			writeError(w, http.StatusBadRequest, "Missing profile_id or account_id parameter")
+			return
+		}
+
+		// Optional check: verify caller ownership if X-Account-ID header is supplied
+		callerAccountID := r.Header.Get("X-Account-ID")
+		if callerAccountID != "" && callerAccountID != accountIDStr {
+			writeError(w, http.StatusForbidden, "Forbidden: cannot delete profile of another account")
+			return
+		}
+
+		res, err := db.Exec("DELETE FROM profile WHERE profile_id = ? AND account_id = ?", profileIDStr, accountIDStr)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to delete profile: %v", err))
+			return
+		}
+
+		rowsAffected, _ := res.RowsAffected()
+		if rowsAffected == 0 {
+			writeError(w, http.StatusNotFound, "Profile not found or already deleted")
+			return
+		}
+
+		writeJSON(w, http.StatusOK, APIResponse{
+			Success: true,
+			Message: "Profile deleted successfully",
+		})
+
 	default:
 		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
 	}
@@ -919,59 +952,185 @@ func historyProgressHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// 8. POST /api/cards: Register Credit Card (Tokenization & Vault Simulation)
-func registerCardHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
+// 8. /api/cards: Tokenization & Vault Management (GET, POST, DELETE)
+func cardsHandler(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		accountIDStr := r.URL.Query().Get("account_id")
+		if accountIDStr == "" {
+			writeError(w, http.StatusBadRequest, "Missing account_id parameter")
+			return
+		}
+
+		// 1. Authenticate caller identity from the request header/session
+		callerAccountID := r.Header.Get("X-Account-ID")
+		if callerAccountID == "" {
+			writeError(w, http.StatusUnauthorized, "Authentication required: missing session credentials")
+			return
+		}
+
+		// 2. Authorize: verify the caller owns the account being accessed (prevents IDOR)
+		if callerAccountID != accountIDStr {
+			writeError(w, http.StatusForbidden, "Access denied: you cannot view payment methods for another account")
+			return
+		}
+
+		rows, err := db.Query(`
+			SELECT card_id, account_id, cardholder_name, card_brand, last_four, exp_month, exp_year
+			FROM credit_card
+			WHERE account_id = ?
+			ORDER BY card_id DESC
+		`, accountIDStr)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to fetch cards: %v", err))
+			return
+		}
+		defer rows.Close()
+
+		type CardDTO struct {
+			CardID         int    `json:"card_id"`
+			AccountID      int    `json:"account_id"`
+			CardholderName string `json:"cardholder_name"`
+			CardBrand      string `json:"card_brand"`
+			LastFour       string `json:"last_four"`
+			ExpMonth       int    `json:"exp_month"`
+			ExpYear        int    `json:"exp_year"`
+		}
+
+		cards := make([]CardDTO, 0)
+		for rows.Next() {
+			var c CardDTO
+			if err := rows.Scan(&c.CardID, &c.AccountID, &c.CardholderName, &c.CardBrand, &c.LastFour, &c.ExpMonth, &c.ExpYear); err != nil {
+				writeError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+			cards = append(cards, c)
+		}
+		if err := rows.Err(); err != nil {
+			writeError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to read cards: %v", err))
+			return
+		}
+		writeJSON(w, http.StatusOK, APIResponse{Success: true, Count: len(cards), Data: cards})
+
+	case http.MethodPost:
+		var req CardRegistrationRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeError(w, http.StatusBadRequest, "Invalid payload")
+			return
+		}
+
+		callerAccountID := r.Header.Get("X-Account-ID")
+		if callerAccountID == "" {
+			writeError(w, http.StatusUnauthorized, "Authentication required")
+			return
+		}
+
+		if callerAccountID != strconv.Itoa(req.AccountID) {
+			writeError(w, http.StatusForbidden, "Forbidden: cannot register a payment method for another account")
+			return
+		}
+
+		cleanNumber := strings.ReplaceAll(req.CardNumber, " ", "")
+		cleanCVV := strings.TrimSpace(req.CVV)
+
+		isDigitsOnly := func(s string) bool {
+			for _, r := range s {
+				if r < '0' || r > '9' {
+					return false
+				}
+			}
+			return len(s) > 0
+		}
+
+		if len(cleanNumber) < 13 || len(cleanNumber) > 19 || !isDigitsOnly(cleanNumber) {
+			writeError(w, http.StatusBadRequest, "Invalid card number: must contain only digits (13-19 digits)")
+			return
+		}
+
+		if req.ExpMonth < 1 || req.ExpMonth > 12 {
+			writeError(w, http.StatusBadRequest, "Invalid expiration month (1-12)")
+			return
+		}
+
+		if len(cleanCVV) < 3 || len(cleanCVV) > 4 || !isDigitsOnly(cleanCVV) {
+			writeError(w, http.StatusBadRequest, "Invalid CVV: must be 3 or 4 digits")
+			return
+		}
+		lastFour := cleanNumber[len(cleanNumber)-4:]
+
+		cardBrand := "VISA"
+		if strings.HasPrefix(cleanNumber, "4") {
+			cardBrand = "VISA"
+		} else if strings.HasPrefix(cleanNumber, "5") {
+			cardBrand = "MASTERCARD"
+		} else if strings.HasPrefix(cleanNumber, "3") {
+			cardBrand = "AMEX"
+		}
+
+		tokenBytes := make([]byte, 16)
+		_, _ = rand.Read(tokenBytes)
+		mockToken := fmt.Sprintf("tok_mock_%s", hex.EncodeToString(tokenBytes))
+
+		query := `
+			INSERT INTO credit_card 
+			(account_id, cardholder_name, card_brand, last_four, exp_month, exp_year, payment_token) 
+			VALUES (?, ?, ?, ?, ?, ?, ?);
+		`
+		res, err := db.Exec(query, req.AccountID, req.CardholderName, cardBrand, lastFour, req.ExpMonth, req.ExpYear, mockToken)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, fmt.Sprintf("Database error: %v", err))
+			return
+		}
+		cardID, _ := res.LastInsertId()
+
+		writeJSON(w, http.StatusCreated, APIResponse{
+			Success: true,
+			Message: "Thẻ đã được mã hóa bảo mật (Tokenized) thành công!",
+			Data: map[string]any{
+				"card_id":   cardID,
+				"brand":     cardBrand,
+				"last_four": lastFour,
+				"token":     mockToken,
+			},
+		})
+
+	case http.MethodDelete:
+		cardIDStr := r.URL.Query().Get("card_id")
+		accountIDStr := r.URL.Query().Get("account_id")
+		callerAccountID := r.Header.Get("X-Account-ID")
+
+		if cardIDStr == "" || accountIDStr == "" {
+			writeError(w, http.StatusBadRequest, "Missing card_id or account_id parameter")
+			return
+		}
+
+   		 if callerAccountID == "" {
+        	writeError(w, http.StatusUnauthorized, "Authentication required: missing session credentials")
+        	return
+    	}
+
+		if callerAccountID == "" || callerAccountID != accountIDStr {
+        	writeError(w, http.StatusForbidden, "Unauthorized to delete payment method")
+        	return
+    	}
+
+		res, err := db.Exec("DELETE FROM credit_card WHERE card_id = ? AND account_id = ?", cardIDStr, accountIDStr)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		rowsAffected, _ := res.RowsAffected()
+		if rowsAffected == 0 {
+			writeError(w, http.StatusNotFound, "Card not found or does not belong to this account")
+			return
+		}
+
+		writeJSON(w, http.StatusOK, APIResponse{Success: true, Message: "Đã xóa phương thức thanh toán thành công!"})
+
+	default:
 		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
-		return
 	}
-
-	var req CardRegistrationRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "Invalid payload")
-		return
-	}
-
-	cleanNumber := strings.ReplaceAll(req.CardNumber, " ", "")
-	if len(cleanNumber) < 4 {
-		writeError(w, http.StatusBadRequest, "Invalid card length")
-		return
-	}
-	lastFour := cleanNumber[len(cleanNumber)-4:]
-
-	cardBrand := "VISA"
-	if strings.HasPrefix(cleanNumber, "4") {
-		cardBrand = "VISA"
-	} else if strings.HasPrefix(cleanNumber, "5") {
-		cardBrand = "MASTERCARD"
-	} else if strings.HasPrefix(cleanNumber, "3") {
-		cardBrand = "AMEX"
-	}
-
-	tokenBytes := make([]byte, 16)
-	_, _ = rand.Read(tokenBytes)
-	mockToken := fmt.Sprintf("tok_mock_%s", hex.EncodeToString(tokenBytes))
-
-	query := `
-		INSERT INTO credit_card 
-		(account_id, cardholder_name, card_brand, last_four, exp_month, exp_year, payment_token) 
-		VALUES (?, ?, ?, ?, ?, ?, ?);
-	`
-	_, err := db.Exec(query, req.AccountID, req.CardholderName, cardBrand, lastFour, req.ExpMonth, req.ExpYear, mockToken)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("Database error: %v", err))
-		return
-	}
-
-	writeJSON(w, http.StatusCreated, APIResponse{
-		Success: true,
-		Message: "Card tokenized successfully",
-		Data: map[string]string{
-			"brand":     cardBrand,
-			"last_four": lastFour,
-			"token":     mockToken,
-		},
-	})
 }
 
 // 9. GET & POST /api/accounts: Membership & Billing Management
@@ -1344,7 +1503,7 @@ func main() {
 	mux.HandleFunc("/api/accounts/pay", payAccountInvoiceHandler)
 	mux.HandleFunc("/api/accounts/cancel", cancelAccountHandler)
 	mux.HandleFunc("/api/accounts/reactivate", reactivateAccountHandler)
-	mux.HandleFunc("/api/cards", registerCardHandler)
+	mux.HandleFunc("/api/cards", cardsHandler)
 
 	server := &http.Server{
 		Addr:         ":" + port,
