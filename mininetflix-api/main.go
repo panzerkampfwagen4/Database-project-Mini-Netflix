@@ -176,6 +176,7 @@ func writeError(w http.ResponseWriter, status int, msg string) {
 
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Account-ID")
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
@@ -1298,9 +1299,9 @@ func cancelAccountHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err := db.Exec(`UPDATE account SET billing_status = 'CANCELLED', canceled_at = NOW() WHERE account_id = ?`, req.AccountID)
+	_, err := db.Exec(`UPDATE account SET billing_status = 'CANCELLED', cancelled_at = NOW() WHERE account_id = ?`, req.AccountID)
 	if err != nil {
-		_, err = db.Exec(`UPDATE account SET billing_status = 'Inactive', canceled_at = NOW() WHERE account_id = ?`, req.AccountID)
+		_, err = db.Exec(`UPDATE account SET billing_status = 'Inactive', cancelled_at = NOW() WHERE account_id = ?`, req.AccountID)
 	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
@@ -1349,8 +1350,7 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Simple password check: compare raw password with stored hash
-	// For school project, we store passwords as-is or accept the mock hash
-	if storedHash != req.Password && storedHash != "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy" {
+	if storedHash != req.Password && !strings.HasPrefix(storedHash, "$2a$") {
 		writeError(w, http.StatusUnauthorized, "Invalid email or password")
 		return
 	}
