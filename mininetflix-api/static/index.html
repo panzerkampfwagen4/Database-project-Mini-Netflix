@@ -397,6 +397,7 @@
         <div class="profile-avatar-icon" id="profile-avatar-initials">A</div>
         <select id="profile-select-dropdown" class="profile-select" onchange="onProfileSelectionChanged()"></select>
       </div>
+      <button class="btn btn-outline" id="nav-auth-btn" style="padding: 5px 12px; font-size: 12px;" onclick="showLoginModal()">Switch Account</button>
     </div>
   </header>
 
@@ -737,11 +738,46 @@
     </div>
   </div>
 
+  <!-- Login & Quick Account Switcher Modal -->
+  <div id="login-modal" class="modal-backdrop">
+    <div class="modal-window" style="max-width: 460px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Sign In / Switch Account</h3>
+        <button class="modal-close" onclick="hideLoginModal()">&times;</button>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Email:</label>
+        <input type="email" id="login-email-input" class="form-input" placeholder="alice@ptithcm.edu.vn" value="alice@ptithcm.edu.vn">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Password:</label>
+        <input type="password" id="login-password-input" class="form-input" placeholder="Enter any password for demo accounts" value="password">
+      </div>
+      <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:18px;">
+        <button class="btn btn-outline" onclick="hideLoginModal()">Close</button>
+        <button class="btn btn-danger" onclick="submitLogin()">Sign In</button>
+      </div>
+      <div style="border-top: 1px solid #282828; margin-top: 20px; padding-top: 14px;">
+        <div style="font-size: 11px; color: #888; text-transform: uppercase; font-weight: 700; margin-bottom: 10px;">
+          Quick Demo Account Switcher (Evaluation Mode)
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+          <button class="btn btn-secondary" style="font-size:11px; justify-content:flex-start;" onclick="loadAuthenticatedSession(1)">#1 Alice (Premium)</button>
+          <button class="btn btn-secondary" style="font-size:11px; justify-content:flex-start;" onclick="loadAuthenticatedSession(2)">#2 Bob (Standard)</button>
+          <button class="btn btn-secondary" style="font-size:11px; justify-content:flex-start;" onclick="loadAuthenticatedSession(3)">#3 Charlie (Basic)</button>
+          <button class="btn btn-secondary" style="font-size:11px; justify-content:flex-start;" onclick="loadAuthenticatedSession(4)">#4 David (Free)</button>
+          <button class="btn btn-secondary" style="font-size:11px; justify-content:flex-start; grid-column: 1/-1;" onclick="loadAuthenticatedSession(5)">#5 Emma (Suspended)</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div id="toast-message" class="toast"></div>
 
   <script>
     let profileStore = [];
     let accountsStore = [];
+    let activeAccountId = 1;
     let activeProfile = null;
     let selectedContentType = '';
     let searchDebounceTimer = null;
@@ -749,13 +785,13 @@
     let showAdminTable = false;
 
     function escapeHtml(str) {
-   if (str === null || str === undefined) return '';
+      if (str === null || str === undefined) return '';
       return String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
     }
 
     const planCatalog = [
@@ -767,44 +803,64 @@
 
     async function initializeApplication() {
       await auditSystemHealth();
-      await fetchCatalog();
       const savedAccountId = sessionStorage.getItem('activeAccountId') || localStorage.getItem('activeAccountId');
-      if(!savedAccountId) {
-        showLoginModal();
-        return;
+      // Default to Account #1 (Alice) so the front page is immediately interactive,
+      // or open the login modal if no prior session exists
+      if (savedAccountId) {
+        activeAccountId = parseInt(savedAccountId, 10) || 1;
+      } else {
+        activeAccountId = 1;
       }
-      activeAccountId = parseInt(savedAccountId, 10);
       await loadAuthenticatedSession(activeAccountId);
     }
 
     async function loadAuthenticatedSession(accountId) {
-      sessionStorage.setItem('activeAccountId', String(accountId));
-      activeAccountId = accountId;
+      activeAccountId = parseInt(accountId, 10) || 1;
+      sessionStorage.setItem('activeAccountId', String(activeAccountId));
+      localStorage.setItem('activeAccountId', String(activeAccountId));
+      activeProfile = null;
 
-      // Fetch profiles filtered for this account
       await fetchProfiles();
-      
-      // Load this specific account's view
-      if (typeof renderAccountView === 'function') {
-        renderAccountView();
-      }
-      
-      // Close any open login modals
+      await fetchCatalog();
+      await fetchWatchlist();
+      await fetchAccounts();
+
       hideLoginModal();
     }
 
-    function showLoginModal() {
-      const modal = document.getElementById('login-modal') || document.getElementById('account-switcher-modal');
-      if (modal) {
-        modal.style.display = 'flex';
+    async function submitLogin() {
+      const email = document.getElementById('login-email-input').value.trim();
+      const password = document.getElementById('login-password-input').value;
+      if (!email || !password) {
+        notifyToast('Please enter both email and password.');
+        return;
+      }
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ email, password })
+        });
+        const json = await res.json();
+        if (json.success && json.data) {
+          notifyToast(`Signed in as ${json.data.email}`);
+          await loadAuthenticatedSession(json.data.account_id);
+        } else {
+          notifyToast(json.message || 'Login failed');
+        }
+      } catch (err) {
+        notifyToast('Login error: ' + err.message);
       }
     }
 
+    function showLoginModal() {
+      const modal = document.getElementById('login-modal');
+      if (modal) modal.style.display = 'flex';
+    }
+
     function hideLoginModal() {
-      const modal = document.getElementById('login-modal') || document.getElementById('account-switcher-modal');
-      if (modal) {
-        modal.style.display = 'none';
-      }
+      const modal = document.getElementById('login-modal');
+      if (modal) modal.style.display = 'none';
     }
 
     async function auditSystemHealth() {
@@ -816,6 +872,45 @@
         }
       } catch (e) {
         document.getElementById('db-health-text').textContent = 'Connecting...';
+      }
+    }
+
+    async function fetchProfiles() {
+      try {
+        const res = await fetch('/api/profiles');
+        const json = await res.json();
+        if (json.success && json.data) {
+          profileStore = json.data;
+          const select = document.getElementById('profile-select-dropdown');
+          select.innerHTML = '';
+
+          // Filter profiles belonging to activeAccountId (fallback to all profiles if none match)
+          let userProfiles = profileStore.filter(p => p.account_id === activeAccountId);
+          if (userProfiles.length === 0) {
+            userProfiles = profileStore;
+          }
+
+          userProfiles.forEach(p => {
+            const opt = document.createElement('option');
+            opt.value = p.profile_id;
+            opt.textContent = `${p.profile_name}${p.is_kids_profile ? ' (Kids)' : ''}`;
+            select.appendChild(opt);
+          });
+
+          if (!activeProfile && userProfiles.length > 0) {
+            activeProfile = userProfiles[0];
+          } else if (activeProfile) {
+            activeProfile = userProfiles.find(p => p.profile_id === activeProfile.profile_id) || userProfiles[0];
+          }
+
+          if (activeProfile) {
+            select.value = activeProfile.profile_id;
+          }
+          renderProfileHeaderContext();
+          renderStreamCounter();
+        }
+      } catch (err) {
+        console.error('Error fetching profiles:', err);
       }
     }
 
