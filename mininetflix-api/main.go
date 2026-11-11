@@ -1472,7 +1472,7 @@ func main() {
 	if port == "" {
 		port = "8080"
 	}
-
+	
 	mux := http.NewServeMux()
 
 	// Portal UI & Health
