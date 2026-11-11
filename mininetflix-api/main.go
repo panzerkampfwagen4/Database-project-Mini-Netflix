@@ -1193,24 +1193,32 @@ func accountsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, http.StatusOK, APIResponse{Success: true, Count: len(accounts), Data: accounts})
 
-	case http.MethodPost:
+case http.MethodPost:
 		var req CreateAccountRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeError(w, http.StatusBadRequest, "Invalid JSON")
 			return
 		}
+		if strings.TrimSpace(req.Email) == "" {
+			writeError(w, http.StatusBadRequest, "Email is required")
+			return
+		}
 
-		mockHash := "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy"
+		passwordToStore := req.Password
+		if passwordToStore == "" {
+			passwordToStore = "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy"
+		}
+
+		// Force current_tier_id = 0 (Free Tier) for all newly registered accounts
 		res, err := db.Exec(`
 			INSERT INTO account (email, password_hash, billing_status, current_tier_id, registration_date, next_billing_date)
-			VALUES (?, ?, 'ACTIVE', ?, CURRENT_DATE, DATE_ADD(CURRENT_DATE, INTERVAL 30 DAY))
-		`, req.Email, mockHash, req.TierID)
+			VALUES (?, ?, 'ACTIVE', 0, CURRENT_DATE, DATE_ADD(CURRENT_DATE, INTERVAL 30 DAY))
+		`, req.Email, passwordToStore)
 		if err != nil {
-			// Fallback if schema uses 'Active' case-sensitive CHECK constraint
 			res, err = db.Exec(`
 				INSERT INTO account (email, password_hash, billing_status, current_tier_id, registration_date, next_billing_date)
-				VALUES (?, ?, 'Active', ?, CURRENT_DATE, DATE_ADD(CURRENT_DATE, INTERVAL 30 DAY))
-			`, req.Email, mockHash, req.TierID)
+				VALUES (?, ?, 'Active', 0, CURRENT_DATE, DATE_ADD(CURRENT_DATE, INTERVAL 30 DAY))
+			`, req.Email, passwordToStore)
 		}
 		if err != nil {
 			writeError(w, http.StatusConflict, fmt.Sprintf("Could not create account: %v", err))
@@ -1218,13 +1226,13 @@ func accountsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		accID, _ := res.LastInsertId()
-		// Automatically create default primary profile so BR-05 (1 <= N <= 5) is satisfied
 		defaultName := strings.Split(req.Email, "@")[0]
 		_, _ = db.Exec(`INSERT INTO profile (account_id, profile_name, is_kids_profile) VALUES (?, ?, FALSE)`, accID, defaultName)
 
 		writeJSON(w, http.StatusCreated, APIResponse{
 			Success: true,
-			Message: fmt.Sprintf("Account #%d (%s) registered with default profile", accID, req.Email),
+			Message: fmt.Sprintf("Account #%d (%s) created on Free Tier. Add a payment card to upgrade!", accID, req.Email),
+			Data:    map[string]any{"account_id": accID, "email": req.Email, "tier_id": 0},
 		})
 
 	default:
@@ -1244,12 +1252,34 @@ func updateAccountTierHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.TierID < 0 || req.TierID > 3 {
+		writeError(w, http.StatusBadRequest, "Invalid tier_id (must be 0 to 3)")
+		return
+	}
+
+	// If upgrading to a paid tier (Basic=1, Standard=2, Premium=3), require at least 1 saved card
+	if req.TierID > 0 {
+		var cardCount int
+		err := db.QueryRow("SELECT COUNT(*) FROM credit_card WHERE account_id = ?", req.AccountID).Scan(&cardCount)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Failed to verify payment methods")
+			return
+		}
+		if cardCount == 0 {
+			writeError(w, http.StatusPaymentRequired, "Yêu cầu thanh toán: Bạn phải đăng ký ít nhất 1 thẻ thanh toán (Payment Method) trước khi nâng cấp lên gói trả phí!")
+			return
+		}
+	}
+
 	_, err := db.Exec("UPDATE account SET current_tier_id = ? WHERE account_id = ?", req.TierID, req.AccountID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, APIResponse{Success: true, Message: fmt.Sprintf("Account #%d subscription tier updated", req.AccountID)})
+	writeJSON(w, http.StatusOK, APIResponse{
+		Success: true,
+		Message: fmt.Sprintf("Đã cập nhật gói dịch vụ cho Account #%d thành công!", req.AccountID),
+	})
 }
 
 // 11. POST /api/accounts/pay: Process Renewal Payment & Reactivate SUSPENDED Account
@@ -1378,16 +1408,16 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// For school project: store password as-is (no bcrypt dependency needed)
+	// Force current_tier_id = 0 (Free Tier) on registration
 	res, err := db.Exec(`
 		INSERT INTO account (email, password_hash, billing_status, current_tier_id, registration_date, next_billing_date)
-		VALUES (?, ?, 'ACTIVE', ?, CURRENT_DATE, DATE_ADD(CURRENT_DATE, INTERVAL 30 DAY))
-	`, req.Email, req.Password, req.TierID)
+		VALUES (?, ?, 'ACTIVE', 0, CURRENT_DATE, DATE_ADD(CURRENT_DATE, INTERVAL 30 DAY))
+	`, req.Email, req.Password)
 	if err != nil {
 		res, err = db.Exec(`
 			INSERT INTO account (email, password_hash, billing_status, current_tier_id, registration_date, next_billing_date)
-			VALUES (?, ?, 'Active', ?, CURRENT_DATE, DATE_ADD(CURRENT_DATE, INTERVAL 30 DAY))
-		`, req.Email, req.Password, req.TierID)
+			VALUES (?, ?, 'Active', 0, CURRENT_DATE, DATE_ADD(CURRENT_DATE, INTERVAL 30 DAY))
+		`, req.Email, req.Password)
 	}
 	if err != nil {
 		if strings.Contains(err.Error(), "Duplicate") || strings.Contains(err.Error(), "uk_account_email") {
