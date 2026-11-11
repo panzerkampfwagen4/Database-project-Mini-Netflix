@@ -689,9 +689,9 @@
     </div>
   </div>
 
-  <!-- Register Account Modal -->
+<!-- Register Account Modal -->
   <div id="register-account-modal" class="modal-backdrop">
-    <div class="modal-window">
+    <div class="modal-window" style="max-width: 460px;">
       <div class="modal-header">
         <h3 class="modal-title">Đăng Ký Tài Khoản Mới</h3>
         <button class="modal-close" onclick="closeNewAccountModal()">&times;</button>
@@ -701,17 +701,19 @@
         <input type="email" id="modal-new-email" class="form-input" placeholder="customer@gmail.com">
       </div>
       <div class="form-group">
-        <label class="form-label">Gói Dịch Vụ Ban Đầu:</label>
-        <select id="modal-new-tier" class="form-select">
-          <option value="0">Free ($0.00 / mo - 1 Stream, 480p)</option>
-          <option value="1">Basic ($9.99 / mo - 1 Stream, 720p)</option>
-          <option value="2" selected>Standard ($15.49 / mo - 2 Streams, 1080p)</option>
-          <option value="3">Premium ($19.99 / mo - 4 Streams, 4K UHD)</option>
-        </select>
+        <label class="form-label">Mật Khẩu:</label>
+        <input type="password" id="modal-new-password" class="form-input" placeholder="Nhập mật khẩu..." value="123456">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Gói Dịch Vụ Mặc Định:</label>
+        <input type="text" class="form-input" value="Free Tier ($0.00 / tháng - 1 Stream, 480p SD)" disabled style="color:#AAA; background:#1a1a1a; cursor:not-allowed;">
+        <p style="font-size:11px; color:var(--accent-yellow); margin-top:6px;">
+          * Mọi tài khoản mới đều bắt đầu ở gói Free. Để nâng cấp lên gói trả phí, vui lòng thêm Thẻ Thanh Toán sau khi đăng nhập.
+        </p>
       </div>
       <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:24px;">
         <button class="btn btn-outline" onclick="closeNewAccountModal()">Hủy</button>
-        <button class="btn btn-danger" onclick="submitCreateAccount()">Tạo Tài Khoản</button>
+        <button class="btn btn-danger" onclick="submitCreateAccount()">Tạo Tài Khoản Free</button>
       </div>
     </div>
   </div>
@@ -738,12 +740,12 @@
     </div>
   </div>
 
-  <!-- Login & Quick Account Switcher Modal -->
+<!-- Login & Quick Account Switcher Modal -->
   <div id="login-modal" class="modal-backdrop">
     <div class="modal-window" style="max-width: 460px;">
       <div class="modal-header">
-        <h3 class="modal-title">Sign In / Switch Account</h3>
-        <button class="modal-close" onclick="hideLoginModal()">&times;</button>
+        <h3 class="modal-title">Đăng Nhập Hệ Thống Mini-Netflix</h3>
+        <button class="modal-close" id="login-modal-close-btn" onclick="hideLoginModal()" style="display:none;">&times;</button>
       </div>
       <div class="form-group">
         <label class="form-label">Email:</label>
@@ -751,15 +753,18 @@
       </div>
       <div class="form-group">
         <label class="form-label">Password:</label>
-        <input type="password" id="login-password-input" class="form-input" placeholder="Enter any password for demo accounts" value="password">
+        <input type="password" id="login-password-input" class="form-input" placeholder="Nhập mật khẩu" value="password">
       </div>
-      <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:18px;">
-        <button class="btn btn-outline" onclick="hideLoginModal()">Close</button>
-        <button class="btn btn-danger" onclick="submitLogin()">Sign In</button>
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-top:18px;">
+        <button class="btn btn-outline" onclick="openNewAccountModal()">+ Tạo Tài Khoản Mới (Free)</button>
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-outline" id="login-modal-cancel-btn" onclick="hideLoginModal()" style="display:none;">Đóng</button>
+          <button class="btn btn-danger" onclick="submitLogin()">Đăng Nhập</button>
+        </div>
       </div>
       <div style="border-top: 1px solid #282828; margin-top: 20px; padding-top: 14px;">
         <div style="font-size: 11px; color: #888; text-transform: uppercase; font-weight: 700; margin-bottom: 10px;">
-          Quick Demo Account Switcher (Evaluation Mode)
+          Chuyển Nhanh Tài Khoản Demo (Evaluation Mode)
         </div>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
           <button class="btn btn-secondary" style="font-size:11px; justify-content:flex-start;" onclick="loadAuthenticatedSession(1)">#1 Alice (Premium)</button>
@@ -775,9 +780,10 @@
   <div id="toast-message" class="toast"></div>
 
   <script>
-    let profileStore = [];
+let profileStore = [];
     let accountsStore = [];
-    let activeAccountId = 1;
+    let savedCardsStore = [];
+    let activeAccountId = null;
     let activeProfile = null;
     let selectedContentType = '';
     let searchDebounceTimer = null;
@@ -803,21 +809,20 @@
 
     async function initializeApplication() {
       await auditSystemHealth();
-      const savedAccountId = sessionStorage.getItem('activeAccountId') || localStorage.getItem('activeAccountId');
-      // Default to Account #1 (Alice) so the front page is immediately interactive,
-      // or open the login modal if no prior session exists
+      // Check sessionStorage so opening a new tab/session always prompts Login first
+      const savedAccountId = sessionStorage.getItem('activeAccountId');
       if (savedAccountId) {
-        activeAccountId = parseInt(savedAccountId, 10) || 1;
+        activeAccountId = parseInt(savedAccountId, 10);
+        await loadAuthenticatedSession(activeAccountId);
       } else {
-        activeAccountId = 1;
+        // Force Login Modal on initial visit
+        showLoginModal(true);
       }
-      await loadAuthenticatedSession(activeAccountId);
     }
 
     async function loadAuthenticatedSession(accountId) {
-      activeAccountId = parseInt(accountId, 10) || 1;
+      activeAccountId = parseInt(accountId, 10);
       sessionStorage.setItem('activeAccountId', String(activeAccountId));
-      localStorage.setItem('activeAccountId', String(activeAccountId));
       activeProfile = null;
 
       await fetchProfiles();
@@ -825,6 +830,10 @@
       await fetchWatchlist();
       await fetchAccounts();
 
+      // Enable close buttons on login modal now that user is logged in
+      document.getElementById('login-modal-close-btn').style.display = 'block';
+      document.getElementById('login-modal-cancel-btn').style.display = 'inline-flex';
+      document.getElementById('nav-auth-btn').textContent = `Switch Account (#${activeAccountId})`;
       hideLoginModal();
     }
 
@@ -832,7 +841,7 @@
       const email = document.getElementById('login-email-input').value.trim();
       const password = document.getElementById('login-password-input').value;
       if (!email || !password) {
-        notifyToast('Please enter both email and password.');
+        notifyToast('Vui lòng nhập đầy đủ email và mật khẩu.');
         return;
       }
       try {
@@ -843,22 +852,30 @@
         });
         const json = await res.json();
         if (json.success && json.data) {
-          notifyToast(`Signed in as ${json.data.email}`);
+          notifyToast(`Đăng nhập thành công: ${json.data.email}`);
           await loadAuthenticatedSession(json.data.account_id);
         } else {
-          notifyToast(json.message || 'Login failed');
+          notifyToast(json.message || 'Đăng nhập thất bại');
         }
       } catch (err) {
-        notifyToast('Login error: ' + err.message);
+        notifyToast('Lỗi kết nối: ' + err.message);
       }
     }
 
-    function showLoginModal() {
+    function showLoginModal(isInitialGate = false) {
       const modal = document.getElementById('login-modal');
-      if (modal) modal.style.display = 'flex';
+      if (!modal) return;
+      const canClose = !isInitialGate && activeAccountId !== null;
+      document.getElementById('login-modal-close-btn').style.display = canClose ? 'block' : 'none';
+      document.getElementById('login-modal-cancel-btn').style.display = canClose ? 'inline-flex' : 'none';
+      modal.style.display = 'flex';
     }
 
     function hideLoginModal() {
+      if (!activeAccountId) {
+        notifyToast('Vui lòng đăng nhập trước khi sử dụng hệ thống!');
+        return;
+      }
       const modal = document.getElementById('login-modal');
       if (modal) modal.style.display = 'none';
     }
@@ -876,6 +893,7 @@
     }
 
     async function fetchProfiles() {
+      if (!activeAccountId) return;
       try {
         const res = await fetch('/api/profiles');
         const json = await res.json();
@@ -884,11 +902,8 @@
           const select = document.getElementById('profile-select-dropdown');
           select.innerHTML = '';
 
-          // Filter profiles belonging to activeAccountId (fallback to all profiles if none match)
-          let userProfiles = profileStore.filter(p => p.account_id === activeAccountId);
-          if (userProfiles.length === 0) {
-            userProfiles = profileStore;
-          }
+          const targetAccId = activeAccountId ?? activeProfile?.account_id ?? profileStore[0]?.account_id;
+          const userProfiles = profileStore.filter(p => p.account_id === targetAccId);
 
           userProfiles.forEach(p => {
             const opt = document.createElement('option');
@@ -905,38 +920,6 @@
 
           if (activeProfile) {
             select.value = activeProfile.profile_id;
-          }
-          renderProfileHeaderContext();
-          renderStreamCounter();
-        }
-      } catch (err) {
-        console.error('Error fetching profiles:', err);
-      }
-    }
-
-    async function fetchProfiles() {
-      try {
-            const res = await fetch('/api/profiles');
-            const json = await res.json();
-            if (json.success && json.data) {
-            profileStore = json.data;
-            const select = document.getElementById('profile-select-dropdown');
-            select.innerHTML = '';
-
-            // Filter to only display profiles belonging to the active account
-            const userProfiles = profileStore.filter(p => p.account_id === (activeProfile?.account_id ?? profileStore[0]?.account_id));
-
-            userProfiles.forEach(p => {
-            const opt = document.createElement('option');
-            opt.value = p.profile_id;
-            // Show clean profile name + Kids indicator if applicable
-            opt.textContent = `${p.profile_name}${p.is_kids_profile ? ' (Kids)' : ''}`;
-            select.appendChild(opt);
-            });
-          if (!activeProfile && userProfiles.length > 0) {
-            activeProfile = userProfiles[0];
-          } else if (activeProfile) {
-            activeProfile = userProfiles.find(p => p.profile_id === activeProfile.profile_id) || userProfiles[0];
           }
           renderProfileHeaderContext();
           renderStreamCounter();
@@ -1316,7 +1299,8 @@
             'X-Account-ID': String(accountId)
           }
         });
-                const json = await res.json();
+        const json = await res.json();
+        savedCardsStore = (json.success && Array.isArray(json.data)) ? json.data : [];
         container.innerHTML = '';
         if (!json.success || !json.data || json.data.length === 0) {
           container.innerHTML = `
@@ -1401,23 +1385,31 @@
       container.innerHTML = html;
     }
 
-    async function updateTier(accId, tierId) {
-      try {
-        const res = await fetch('/api/accounts/tier', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({account_id: parseInt(accId), tier_id: parseInt(tierId)})
-        });
-        const json = await res.json();
-        notifyToast(json.message);
-        await fetchProfiles();
-        await fetchAccounts();
-        fetchCatalog();
-      } catch (e) {
-        notifyToast('Error: ' + e.message);
-      }
-    }
-
+async function updateTier(accId, tierId) {
+   if (tierId > 0 && savedCardsStore.length === 0) {
+     notifyToast('Bạn cần thêm Phương Thức Thanh Toán (Thẻ tín dụng/ghi nợ) trước khi nâng cấp lên gói trả phí!');
+     openRegisterCardModal();
+     return;
+   }
+   try {
+     const res = await fetch('/api/accounts/tier', {
+       method: 'POST',
+       headers: {'Content-Type': 'application/json'},
+       body: JSON.stringify({account_id: parseInt(accId), tier_id: parseInt(tierId)})
+     });
+     const json = await res.json();
+     notifyToast(json.message);
+     if (!res.ok) {
+       if (res.status === 402) openRegisterCardModal();
+       return;
+     }
+     await fetchProfiles();
+     await fetchAccounts();
+     fetchCatalog();
+   } catch (e) {
+     notifyToast('Error: ' + e.message);
+   }
+ }
     async function payInvoice(accId) {
       try {
         const res = await fetch('/api/accounts/pay', {
@@ -1606,26 +1598,26 @@
     function openNewAccountModal() { document.getElementById('register-account-modal').style.display = 'flex'; }
     function closeNewAccountModal() { document.getElementById('register-account-modal').style.display = 'none'; }
     async function submitCreateAccount() {
-      const email = document.getElementById('modal-new-email').value.trim();
-      const tierId = parseInt(document.getElementById('modal-new-tier').value);
-      if (!email) { alert('Vui lòng nhập email khách hàng.'); return; }
-      try {
-        const res = await fetch('/api/accounts', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({email: email, tier_id: tierId})
-        });
-        const json = await res.json();
-        notifyToast(json.message);
-        if (json.success) {
-          closeNewAccountModal();
-          await fetchProfiles();
-          await fetchAccounts();
-        }
-      } catch (e) {
-        notifyToast('Lỗi: ' + e.message);
-      }
-    }
+       const email = document.getElementById('modal-new-email').value.trim();
+       const password = document.getElementById('modal-new-password') ? document.getElementById('modal-new-password').value : '123456';
+       if (!email) { alert('Vui lòng nhập email khách hàng.'); return; }
+       try {
+         const res = await fetch('/api/accounts', {
+           method: 'POST',
+           headers: {'Content-Type': 'application/json'},
+           body: JSON.stringify({ email: email, password: password, tier_id: 0 })
+         });
+         const json = await res.json();
+         notifyToast(json.message);
+         if (json.success && json.data && json.data.account_id) {
+           closeNewAccountModal();
+           await loadAuthenticatedSession(json.data.account_id);
+           switchNavTab('account');
+         }
+       } catch (e) {
+         notifyToast('Lỗi: ' + e.message);
+       }
+     }
 
     function openNewProfileModal() { document.getElementById('create-profile-modal').style.display = 'flex'; }
     function closeNewProfileModal() { document.getElementById('create-profile-modal').style.display = 'none'; }
