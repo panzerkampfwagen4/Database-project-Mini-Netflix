@@ -825,7 +825,7 @@
     ];
 
     async function initializeApplication() {
-      await auditSystemHealth();
+      auditSystemHealth();
       // Check sessionStorage so opening a new tab/session always prompts Login first
       const savedAccountId = sessionStorage.getItem('activeAccountId');
       if (savedAccountId) {
@@ -843,9 +843,11 @@
       activeProfile = null;
 
       await fetchProfiles();
-      await fetchCatalog();
-      await fetchWatchlist();
-      await fetchAccounts();
+      await Promise.all([
+        fetchCatalog(false),
+        fetchWatchlist(),
+        fetchAccounts()
+      ]);
 
       // Enable close buttons on login modal now that user is logged in
       document.getElementById('login-modal-close-btn').style.display = 'block';
@@ -898,14 +900,18 @@
     }
 
     async function auditSystemHealth() {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
       try {
-        const res = await fetch('/health');
+        const res = await fetch('/health', { signal: controller.signal });
         const data = await res.json();
         if (data.success) {
           document.getElementById('db-health-text').textContent = 'Online (' + data.data.database + ')';
         }
       } catch (e) {
-        document.getElementById('db-health-text').textContent = 'Connecting...';
+        document.getElementById('db-health-text').textContent = 'Waking up / Offline';
+      } finally {
+        clearTimeout(timeoutId);
       }
     }
 
