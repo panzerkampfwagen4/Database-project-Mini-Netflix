@@ -298,6 +298,7 @@ func catalogHandler(w http.ResponseWriter, r *http.Request) {
 	queryParams := r.URL.Query()
 	profileIDStr := queryParams.Get("profile_id")
 	search := queryParams.Get("search")
+	searchSynopsis := strings.EqualFold(queryParams.Get("search_synopsis"), "true")
 	contentType := queryParams.Get("type")
 	includeLocked := strings.EqualFold(queryParams.Get("include_locked"), "true")
 
@@ -360,9 +361,22 @@ func catalogHandler(w http.ResponseWriter, r *http.Request) {
 		whereClause += " AND ct.content_type = ? "
 		filterArgs = append(filterArgs, contentType)
 	}
-	if search != "" {
-		whereClause += " AND ct.title_name LIKE ? "
-		filterArgs = append(filterArgs, "%"+search+"%")
+	if trimmedSearch := strings.TrimSpace(search); trimmedSearch != "" {
+		tokens := strings.Fields(strings.ToLower(trimmedSearch))
+		if len(tokens) > 6 {
+			tokens = tokens[:6] 
+		}
+		for _, tok := range tokens {
+			escaped := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(tok)
+			pattern := "%" + escaped + "%"
+			if searchSynopsis {
+				whereClause += " AND (LOWER(ct.title_name) LIKE ? OR LOWER(COALESCE(ct.synopsis, '')) LIKE ?) "
+				filterArgs = append(filterArgs, pattern, pattern)
+			} else {
+				whereClause += " AND LOWER(ct.title_name) LIKE ? "
+				filterArgs = append(filterArgs, pattern)
+			}
+		}
 	}
 
 	var totalCount int
