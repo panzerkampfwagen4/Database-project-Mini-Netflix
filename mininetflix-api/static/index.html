@@ -387,6 +387,7 @@
       <div class="search-box">
         <svg class="icon search-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
         <input type="text" id="global-search" placeholder="Search titles, series..." oninput="onSearchInput()">
+        <button id="clear-search-btn" onclick="clearSearchInput()" title="Clear search" style="display:none; position:absolute; right:8px; background:none; border:none; color:#888; font-size:15px; cursor:pointer; line-height:1;">&times;</button>
       </div>
       <div class="stream-status-pill" onclick="openStreamsModal()" title="View active sessions">
         <span class="stream-dot"></span>
@@ -447,6 +448,7 @@
           <button class="filter-pill active" data-type-pill onclick="setCatalogType('', this)">All Titles</button>
           <button class="filter-pill" data-type-pill onclick="setCatalogType('Movie', this)">Movies</button>
           <button class="filter-pill" data-type-pill onclick="setCatalogType('Series', this)">TV Series</button>
+          <button class="filter-pill" id="toggle-synopsis-pill" onclick="toggleSearchSynopsis(this)" title="Advanced: Also search inside plot descriptions">Include Synopsis</button>
           <button class="filter-pill active" id="toggle-locked-pill" onclick="toggleIncludeLocked(this)" title="Include titles from higher subscription tiers (locked from playback until upgraded)">Show All Tiers</button>
         </div>
       </div>
@@ -801,6 +803,9 @@
     let searchDebounceTimer = null;
     let heroFeaturedItem = null;
     let showAdminTable = false;
+    let selectedContentType = '';
+    let searchInSynopsis = false;
+    let includeLockedTiers = true;
 
     function escapeHtml(str) {
       if (str === null || str === undefined) return '';
@@ -978,8 +983,46 @@
     }
 
     function onSearchInput() {
+      const input = document.getElementById('global-search');
+      const clearBtn = document.getElementById('clear-search-btn');
+      if (clearBtn) {
+        clearBtn.style.display = input.value.length > 0 ? 'block' : 'none';
+      }
+
+      // If user types in the search bar while on another tab, switch to Browse automatically
+      const catalogPane = document.getElementById('view-catalog');
+      if (catalogPane && !catalogPane.classList.contains('active')) {
+        switchNavTab('catalog');
+      }
+
       clearTimeout(searchDebounceTimer);
       searchDebounceTimer = setTimeout(() => fetchCatalog(false), 200);
+    }
+
+    function clearSearchInput() {
+      const input = document.getElementById('global-search');
+      input.value = '';
+      document.getElementById('clear-search-btn').style.display = 'none';
+      fetchCatalog(false);
+    }
+
+    function toggleSearchSynopsis(btn) {
+      searchInSynopsis = !searchInSynopsis;
+      btn.classList.toggle('active', searchInSynopsis);
+      btn.textContent = searchInSynopsis ? 'Synopsis Search: ON' : 'Include Synopsis';
+
+      const searchInput = document.getElementById('global-search');
+      searchInput.placeholder = searchInSynopsis
+        ? 'Search titles & plot synopses...'
+        : 'Search titles, series...';
+
+      if (searchInput.value.trim() !== '') {
+        fetchCatalog(false);
+      } else {
+        notifyToast(searchInSynopsis
+          ? 'Advanced Search ON: queries will also match plot synopses.'
+          : 'Synopsis search OFF: searching titles only.');
+      }
     }
 
     function loadMoreCatalog() {
@@ -1009,7 +1052,10 @@
       let url = `/api/catalog?profile_id=${activeProfile.profile_id}&limit=${CATALOG_PAGE_SIZE}&offset=${catalogOffset}`;
       if (includeLockedTiers) url += `&include_locked=true`;
       if (selectedContentType) url += `&type=${selectedContentType}`;
-      if (searchVal) url += `&search=${encodeURIComponent(searchVal)}`;
+      if (searchVal) {
+        url += `&search=${encodeURIComponent(searchVal)}`;
+        if (searchInSynopsis) url += `&search_synopsis=true`;
+      }
 
       try {
         const res = await fetch(url);
@@ -1022,7 +1068,10 @@
 
         if (!json.success || !json.data || json.data.length === 0) {
           if (!append) {
-            container.innerHTML = '<div style="grid-column: 1/-1; padding: 48px; text-align: center; color: #888;">No matching titles found for this profile filter.</div>';
+            const hint = !searchInSynopsis && searchVal
+              ? ' Try enabling <b>Include Synopsis</b> to search plot descriptions as well.'
+              : '';
+            container.innerHTML = `<div style="grid-column: 1/-1; padding: 48px; text-align: center; color: #888;">No matching titles found for this profile filter.${hint}</div>`;
             if (subtitle) subtitle.textContent = '0 titles found';
             if (paginationBar) paginationBar.style.display = 'none';
           }
@@ -1039,9 +1088,12 @@
 
         if (subtitle) {
           const scopeNote = includeLockedTiers
-            ? 'All tiers shown (upgrade prompt on locked titles)'
+            ? 'All tiers shown'
             : `Filtered to ${activeProfile.tier_name} plan & below`;
-          subtitle.textContent = `Showing ${catalogLoadedCount.toLocaleString()} of ${catalogTotal.toLocaleString()} titles (${scopeNote})`;
+          const searchNote = searchVal
+            ? ` • Matching "${searchVal}" in ${searchInSynopsis ? 'Titles & Synopses' : 'Titles'}`
+            : '';
+          subtitle.textContent = `Showing ${catalogLoadedCount.toLocaleString()} of ${catalogTotal.toLocaleString()} titles (${scopeNote}${searchNote})`;
         }
 
         if (paginationBar && loadMoreBtn) {
