@@ -795,6 +795,7 @@
     let activeAccountId = null;
     let activeProfile = null;
     let selectedContentType = '';
+    let searchInSynopsis = false;
     let includeLockedTiers = true;
     let catalogOffset = 0;
     let catalogTotal = 0;
@@ -803,9 +804,6 @@
     let searchDebounceTimer = null;
     let heroFeaturedItem = null;
     let showAdminTable = false;
-    let selectedContentType = '';
-    let searchInSynopsis = false;
-    let includeLockedTiers = true;
 
     function escapeHtml(str) {
       if (str === null || str === undefined) return '';
