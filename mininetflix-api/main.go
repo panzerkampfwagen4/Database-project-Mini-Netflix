@@ -30,6 +30,7 @@ var db *sql.DB
 type APIResponse struct {
 	Success bool   `json:"success"`
 	Count   int    `json:"count,omitempty"`
+	Total   int    `json:"total,omitempty"`
 	Message string `json:"message,omitempty"`
 	Data    any    `json:"data,omitempty"`
 }
@@ -176,16 +177,30 @@ func writeError(w http.ResponseWriter, status int, msg string) {
 
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Account-ID")
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Account-ID")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+func tierDisplayName(tierID int) string {
+	switch tierID {
+	case 0:
+		return "Free"
+	case 1:
+		return "Basic"
+	case 2:
+		return "Standard"
+	case 3:
+		return "Premium"
+	default:
+		return fmt.Sprintf("Tier %d", tierID)
+	}
 }
 
 // normalizeBillingStatus standardizes DB status values for index.html UI badges
@@ -284,6 +299,23 @@ func catalogHandler(w http.ResponseWriter, r *http.Request) {
 	profileIDStr := queryParams.Get("profile_id")
 	search := queryParams.Get("search")
 	contentType := queryParams.Get("type")
+	includeLocked := strings.EqualFold(queryParams.Get("include_locked"), "true")
+
+	limit := 60
+	if lStr := queryParams.Get("limit"); lStr != "" {
+		if parsed, err := strconv.Atoi(lStr); err == nil && parsed > 0 {
+			if parsed > 240 {
+				parsed = 240
+			}
+			limit = parsed
+		}
+	}
+	offset := 0
+	if oStr := queryParams.Get("offset"); oStr != "" {
+		if parsed, err := strconv.Atoi(oStr); err == nil && parsed >= 0 {
+			offset = parsed
+		}
+	}
 
 	if profileIDStr == "" {
 		writeError(w, http.StatusBadRequest, "Missing required query parameter: profile_id")
@@ -314,6 +346,32 @@ func catalogHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	whereClause := " WHERE 1=1 "
+	var filterArgs []any
+
+	if !includeLocked {
+		whereClause += " AND ct.minimum_tier_id <= ? "
+		filterArgs = append(filterArgs, currentTierID)
+	}
+	if isKids {
+		whereClause += " AND ct.maturity_rating NOT IN ('R', 'NC-17', 'TV-MA') "
+	}
+	if contentType != "" {
+		whereClause += " AND ct.content_type = ? "
+		filterArgs = append(filterArgs, contentType)
+	}
+	if search != "" {
+		whereClause += " AND ct.title_name LIKE ? "
+		filterArgs = append(filterArgs, "%"+search+"%")
+	}
+
+	var totalCount int
+	countQuery := "SELECT COUNT(*) FROM catalog_title ct" + whereClause
+	if err := db.QueryRow(countQuery, filterArgs...).Scan(&totalCount); err != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("Catalog count failed: %v", err))
+		return
+	}
+
 	query := `
 		SELECT 
 			ct.title_id, 
@@ -338,23 +396,12 @@ func catalogHandler(w http.ResponseWriter, r *http.Request) {
 		FROM catalog_title ct
 		LEFT JOIN movie_title mt ON ct.title_id = mt.title_id
 		LEFT JOIN streamable_media_unit smu ON mt.media_unit_id = smu.media_unit_id
-		WHERE ct.minimum_tier_id <= ?
-	`
-	args := []any{profileID, profileID, currentTierID}
+	` + whereClause + " ORDER BY ct.title_name ASC LIMIT ? OFFSET ?;"
 
-	if isKids {
-		query += " AND ct.maturity_rating NOT IN ('R', 'NC-17', 'TV-MA') "
-	}
-	if contentType != "" {
-		query += " AND ct.content_type = ? "
-		args = append(args, contentType)
-	}
-	if search != "" {
-		query += " AND ct.title_name LIKE ? "
-		args = append(args, "%"+search+"%")
-	}
-
-	query += " ORDER BY ct.title_name ASC LIMIT 60;"
+	args := make([]any, 0, 2+len(filterArgs)+2)
+	args = append(args, profileID, profileID)
+	args = append(args, filterArgs...)
+	args = append(args, limit, offset)
 
 	rows, err := db.Query(query, args...)
 	if err != nil {
@@ -404,7 +451,7 @@ func catalogHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, APIResponse{Success: true, Count: len(items), Data: items})
+	writeJSON(w, http.StatusOK, APIResponse{Success: true, Count: len(items), Total: totalCount, Data: items})
 }
 
 // 2. POST /api/movies: Register a new movie across the EER Subclasses
@@ -736,12 +783,13 @@ func startSessionHandler(w http.ResponseWriter, r *http.Request) {
 
 	var maxStreams int
 	var rawStatus string
+	var currentTierID int
 	err := db.QueryRow(`
-		SELECT st.max_concurrent_streams, a.billing_status
+		SELECT st.max_concurrent_streams, a.billing_status, a.current_tier_id
 		FROM account a
 		JOIN subscription_tier st ON a.current_tier_id = st.tier_id
 		WHERE a.account_id = ?
-	`, req.AccountID).Scan(&maxStreams, &rawStatus)
+	`, req.AccountID).Scan(&maxStreams, &rawStatus, &currentTierID)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "Account or tier not found")
 		return
@@ -755,6 +803,29 @@ func startSessionHandler(w http.ResponseWriter, r *http.Request) {
 	if normStatus == "CANCELLED" {
 		writeError(w, http.StatusForbidden, "Account membership is CANCELLED. Please reactivate your plan to stream.")
 		return
+	}
+
+	if req.TitleID != "" {
+		var minTier int
+		var maturityRating string
+		if err := db.QueryRow(`SELECT minimum_tier_id, maturity_rating FROM catalog_title WHERE title_id = ?`, req.TitleID).Scan(&minTier, &maturityRating); err == nil {
+			if minTier > currentTierID {
+				writeError(w, http.StatusForbidden, fmt.Sprintf(
+					"Access Denied (BR-01): Title requires %s plan (Account is currently on %s plan). Please upgrade in Account & Billing.",
+					tierDisplayName(minTier), tierDisplayName(currentTierID),
+				))
+				return
+			}
+			var isKids bool
+			if err := db.QueryRow(`SELECT is_kids_profile FROM profile WHERE profile_id = ? AND account_id = ?`, req.ProfileID, req.AccountID).Scan(&isKids); err == nil && isKids {
+				if maturityRating == "R" || maturityRating == "NC-17" || maturityRating == "TV-MA" {
+					writeError(w, http.StatusForbidden, fmt.Sprintf(
+						"Access Denied (BR-03): Content rated %s is restricted on Kids profiles.", maturityRating,
+					))
+					return
+				}
+			}
+		}
 	}
 
 	var activeCount int

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -439,14 +439,21 @@
       </section>
 
       <div class="section-header">
-        <h2 class="section-title">Explore Catalog</h2>
+        <div>
+          <h2 class="section-title">Explore Catalog</h2>
+          <div id="catalog-count-subtitle" style="font-size:12px; color:#999; margin-top:4px;">Loading catalog...</div>
+        </div>
         <div class="filter-pills">
-          <button class="filter-pill active" onclick="setCatalogType('', this)">All Titles</button>
-          <button class="filter-pill" onclick="setCatalogType('Movie', this)">Movies</button>
-          <button class="filter-pill" onclick="setCatalogType('Series', this)">TV Series</button>
+          <button class="filter-pill active" data-type-pill onclick="setCatalogType('', this)">All Titles</button>
+          <button class="filter-pill" data-type-pill onclick="setCatalogType('Movie', this)">Movies</button>
+          <button class="filter-pill" data-type-pill onclick="setCatalogType('Series', this)">TV Series</button>
+          <button class="filter-pill active" id="toggle-locked-pill" onclick="toggleIncludeLocked(this)" title="Include titles from higher subscription tiers (locked from playback until upgraded)">Show All Tiers</button>
         </div>
       </div>
       <div id="catalog-grid-container" class="cards-grid"></div>
+      <div id="catalog-pagination-bar" style="display:none; justify-content:center; align-items:center; gap:14px; margin-top:28px;">
+        <button class="btn btn-secondary" id="load-more-btn" onclick="loadMoreCatalog()" style="padding:10px 28px; font-size:13px;">Load More Titles</button>
+      </div>
     </div>
 
     <!-- VIEW 2: WATCHLIST -->
@@ -468,9 +475,9 @@
           <p style="font-size:13px; color:var(--text-secondary); margin-top:4px;">Manage your subscription plan, PCI-DSS tokenized payment cards, and profile entitlements.</p>
         </div>
         <div style="display:flex; gap:10px;">
-          <button class="btn btn-secondary" onclick="openNewProfileModal()">+ Thêm Profile</button>
-          <button class="btn btn-danger" onclick="openRegisterCardModal()">+ Đăng Ký Thẻ</button>
-          <button class="btn btn-outline" onclick="openNewAccountModal()">+ Tạo Tài Khoản Mới</button>
+          <button class="btn btn-secondary" onclick="openNewProfileModal()">+ Add Profile</button>
+          <button class="btn btn-danger" onclick="openRegisterCardModal()">+ Register Card</button>
+          <button class="btn btn-outline" onclick="openNewAccountModal()">+ New Account</button>
         </div>
       </div>
 
@@ -627,23 +634,23 @@
   <div id="register-card-modal" class="modal-backdrop">
     <div class="modal-window">
       <div class="modal-header">
-        <h3 class="modal-title">Đăng Ký Thẻ Thanh Toán (PCI-DSS Tokenization)</h3>
+        <h3 class="modal-title">Register Payment Card (PCI-DSS Tokenization)</h3>
         <button class="modal-close" onclick="closeRegisterCardModal()">&times;</button>
       </div>
       <p style="font-size:12px; color:#888; margin-bottom:16px;">
-        Hệ thống giả lập cổng thanh toán an toàn. Số thẻ và mã CVV không bao giờ được lưu nguyên vẹn vào cơ sở dữ liệu.
+        Simulated payment vault. Raw primary account numbers and CVVs are never persisted to the database.
       </p>
       <div class="form-group">
-        <label class="form-label">Tên Chủ Thẻ (In Trên Thẻ):</label>
+        <label class="form-label">Cardholder Name:</label>
         <input type="text" id="modal-card-name" class="form-input" placeholder="e.g. LAM VO">
       </div>
       <div class="form-group">
-        <label class="form-label">Số Thẻ (16 Chữ Số):</label>
+        <label class="form-label">Card Number (16 Digits):</label>
         <input type="text" id="modal-card-number" class="form-input" placeholder="4242 4242 4242 4242" maxlength="19" oninput="formatCardInput(this)">
       </div>
       <div style="display:flex; gap:12px;">
         <div class="form-group" style="flex:1;">
-          <label class="form-label">Tháng Hết Hạn:</label>
+          <label class="form-label">Exp. Month:</label>
           <select id="modal-card-exp-month" class="form-select">
             <option value="1">01</option><option value="2">02</option><option value="3">03</option>
             <option value="4">04</option><option value="5">05</option><option value="6">06</option>
@@ -652,7 +659,7 @@
           </select>
         </div>
         <div class="form-group" style="flex:1;">
-          <label class="form-label">Năm Hết Hạn:</label>
+          <label class="form-label">Exp. Year:</label>
           <select id="modal-card-exp-year" class="form-select">
             <option value="2026">2026</option><option value="2027">2027</option>
             <option value="2028" selected>2028</option><option value="2029">2029</option>
@@ -660,13 +667,13 @@
           </select>
         </div>
         <div class="form-group" style="flex:1;">
-          <label class="form-label">Mã CVV:</label>
+          <label class="form-label">CVV:</label>
           <input type="password" id="modal-card-cvv" class="form-input" placeholder="123" maxlength="4">
         </div>
       </div>
       <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px;">
-        <button class="btn btn-outline" onclick="closeRegisterCardModal()">Hủy</button>
-        <button class="btn btn-danger" onclick="submitRegisterCard()">Mã Hóa &amp; Lưu Thẻ</button>
+        <button class="btn btn-outline" onclick="closeRegisterCardModal()">Cancel</button>
+        <button class="btn btn-danger" onclick="submitRegisterCard()">Tokenize &amp; Save Card</button>
       </div>
     </div>
   </div>
@@ -689,31 +696,31 @@
     </div>
   </div>
 
-<!-- Register Account Modal -->
+  <!-- Register Account Modal -->
   <div id="register-account-modal" class="modal-backdrop">
     <div class="modal-window" style="max-width: 460px;">
       <div class="modal-header">
-        <h3 class="modal-title">Đăng Ký Tài Khoản Mới</h3>
+        <h3 class="modal-title">Create New Account</h3>
         <button class="modal-close" onclick="closeNewAccountModal()">&times;</button>
       </div>
       <div class="form-group">
-        <label class="form-label">Email Khách Hàng:</label>
+        <label class="form-label">Email Address:</label>
         <input type="email" id="modal-new-email" class="form-input" placeholder="customer@gmail.com">
       </div>
       <div class="form-group">
-        <label class="form-label">Mật Khẩu:</label>
-        <input type="password" id="modal-new-password" class="form-input" placeholder="Nhập mật khẩu..." value="123456">
+        <label class="form-label">Password:</label>
+        <input type="password" id="modal-new-password" class="form-input" placeholder="Enter password..." value="123456">
       </div>
       <div class="form-group">
-        <label class="form-label">Gói Dịch Vụ Mặc Định:</label>
-        <input type="text" class="form-input" value="Free Tier ($0.00 / tháng - 1 Stream, 480p SD)" disabled style="color:#AAA; background:#1a1a1a; cursor:not-allowed;">
+        <label class="form-label">Initial Subscription Plan:</label>
+        <input type="text" class="form-input" value="Free Tier ($0.00 / mo - 1 Stream, 480p SD)" disabled style="color:#AAA; background:#1a1a1a; cursor:not-allowed;">
         <p style="font-size:11px; color:var(--accent-yellow); margin-top:6px;">
-          * Mọi tài khoản mới đều bắt đầu ở gói Free. Để nâng cấp lên gói trả phí, vui lòng thêm Thẻ Thanh Toán sau khi đăng nhập.
+          * All new accounts start on the Free plan. Register a payment card after sign-in to upgrade.
         </p>
       </div>
       <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:24px;">
-        <button class="btn btn-outline" onclick="closeNewAccountModal()">Hủy</button>
-        <button class="btn btn-danger" onclick="submitCreateAccount()">Tạo Tài Khoản Free</button>
+        <button class="btn btn-outline" onclick="closeNewAccountModal()">Cancel</button>
+        <button class="btn btn-danger" onclick="submitCreateAccount()">Create Free Account</button>
       </div>
     </div>
   </div>
@@ -722,29 +729,29 @@
   <div id="create-profile-modal" class="modal-backdrop">
     <div class="modal-window">
       <div class="modal-header">
-        <h3 class="modal-title">Thêm Profile Mới (BR-05)</h3>
+        <h3 class="modal-title">Add Profile (BR-05)</h3>
         <button class="modal-close" onclick="closeNewProfileModal()">&times;</button>
       </div>
       <div class="form-group">
-        <label class="form-label">Tên Profile:</label>
-        <input type="text" id="modal-prof-name" class="form-input" placeholder="e.g. Phòng Khách, Trẻ Em">
+        <label class="form-label">Profile Name:</label>
+        <input type="text" id="modal-prof-name" class="form-input" placeholder="e.g. Living Room, Kids">
       </div>
       <div class="form-group" style="display:flex; align-items:center; gap:10px; margin-top:14px;">
         <input type="checkbox" id="modal-prof-kids" style="width:18px; height:18px; cursor:pointer;">
-        <label for="modal-prof-kids" class="form-label" style="margin:0; cursor:pointer;">Chế độ Trẻ Em (BR-04 Giới Hạn Tuổi Trẻ Em)</label>
+        <label for="modal-prof-kids" class="form-label" style="margin:0; cursor:pointer;">Kids Profile (Enforces BR-03 Maturity Filter)</label>
       </div>
       <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:24px;">
-        <button class="btn btn-outline" onclick="closeNewProfileModal()">Hủy</button>
-        <button class="btn btn-danger" onclick="submitCreateProfile()">Lưu Profile</button>
+        <button class="btn btn-outline" onclick="closeNewProfileModal()">Cancel</button>
+        <button class="btn btn-danger" onclick="submitCreateProfile()">Save Profile</button>
       </div>
     </div>
   </div>
 
-<!-- Login & Quick Account Switcher Modal -->
+  <!-- Login & Quick Account Switcher Modal -->
   <div id="login-modal" class="modal-backdrop">
     <div class="modal-window" style="max-width: 460px;">
       <div class="modal-header">
-        <h3 class="modal-title">Đăng Nhập Hệ Thống Mini-Netflix</h3>
+        <h3 class="modal-title">Sign In to Mini-Netflix</h3>
         <button class="modal-close" id="login-modal-close-btn" onclick="hideLoginModal()" style="display:none;">&times;</button>
       </div>
       <div class="form-group">
@@ -753,18 +760,18 @@
       </div>
       <div class="form-group">
         <label class="form-label">Password:</label>
-        <input type="password" id="login-password-input" class="form-input" placeholder="Nhập mật khẩu" value="password">
+        <input type="password" id="login-password-input" class="form-input" placeholder="Enter password" value="password">
       </div>
       <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-top:18px;">
-        <button class="btn btn-outline" onclick="openNewAccountModal()">+ Tạo Tài Khoản Mới (Free)</button>
+        <button class="btn btn-outline" onclick="openNewAccountModal()">+ Create Free Account</button>
         <div style="display:flex; gap:8px;">
-          <button class="btn btn-outline" id="login-modal-cancel-btn" onclick="hideLoginModal()" style="display:none;">Đóng</button>
-          <button class="btn btn-danger" onclick="submitLogin()">Đăng Nhập</button>
+          <button class="btn btn-outline" id="login-modal-cancel-btn" onclick="hideLoginModal()" style="display:none;">Close</button>
+          <button class="btn btn-danger" onclick="submitLogin()">Sign In</button>
         </div>
       </div>
       <div style="border-top: 1px solid #282828; margin-top: 20px; padding-top: 14px;">
         <div style="font-size: 11px; color: #888; text-transform: uppercase; font-weight: 700; margin-bottom: 10px;">
-          Chuyển Nhanh Tài Khoản Demo (Evaluation Mode)
+          Quick Demo Account Switcher (Evaluation Mode)
         </div>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
           <button class="btn btn-secondary" style="font-size:11px; justify-content:flex-start;" onclick="loadAuthenticatedSession(1)">#1 Alice (Premium)</button>
@@ -780,12 +787,17 @@
   <div id="toast-message" class="toast"></div>
 
   <script>
-let profileStore = [];
+    let profileStore = [];
     let accountsStore = [];
     let savedCardsStore = [];
     let activeAccountId = null;
     let activeProfile = null;
     let selectedContentType = '';
+    let includeLockedTiers = true;
+    let catalogOffset = 0;
+    let catalogTotal = 0;
+    let catalogLoadedCount = 0;
+    const CATALOG_PAGE_SIZE = 60;
     let searchDebounceTimer = null;
     let heroFeaturedItem = null;
     let showAdminTable = false;
@@ -801,10 +813,10 @@ let profileStore = [];
     }
 
     const planCatalog = [
-      { id: 0, name: 'Free', price: '$0.00', streams: 1, quality: '480p SD', desc: 'Xem thử các nội dung miễn phí giới hạn.' },
-      { id: 1, name: 'Basic', price: '$9.99', streams: 1, quality: '720p HD', desc: 'Chất lượng HD tiêu chuẩn cho 1 thiết bị.' },
-      { id: 2, name: 'Standard', price: '$15.49', streams: 2, quality: '1080p Full HD', desc: 'Xem cùng lúc 2 thiết bị với độ phân giải cao.' },
-      { id: 3, name: 'Premium', price: '$19.99', streams: 4, quality: '4K UHD + HDR', desc: 'Trải nghiệm đỉnh cao 4K trên tối đa 4 thiết bị đồng thời.' }
+      { id: 0, name: 'Free', price: '$0.00', streams: 1, quality: '480p SD', desc: 'Explore selected free catalog titles.' },
+      { id: 1, name: 'Basic', price: '$9.99', streams: 1, quality: '720p HD', desc: 'Standard HD video quality on 1 device.' },
+      { id: 2, name: 'Standard', price: '$15.49', streams: 2, quality: '1080p Full HD', desc: 'Stream on 2 devices simultaneously in Full HD.' },
+      { id: 3, name: 'Premium', price: '$19.99', streams: 4, quality: '4K UHD + HDR', desc: 'Ultra HD 4K streaming on up to 4 concurrent devices.' }
     ];
 
     async function initializeApplication() {
@@ -841,7 +853,7 @@ let profileStore = [];
       const email = document.getElementById('login-email-input').value.trim();
       const password = document.getElementById('login-password-input').value;
       if (!email || !password) {
-        notifyToast('Vui lòng nhập đầy đủ email và mật khẩu.');
+        notifyToast('Please enter both email and password.');
         return;
       }
       try {
@@ -852,13 +864,13 @@ let profileStore = [];
         });
         const json = await res.json();
         if (json.success && json.data) {
-          notifyToast(`Đăng nhập thành công: ${json.data.email}`);
+          notifyToast(`Signed in as ${json.data.email}`);
           await loadAuthenticatedSession(json.data.account_id);
         } else {
-          notifyToast(json.message || 'Đăng nhập thất bại');
+          notifyToast(json.message || 'Sign in failed');
         }
       } catch (err) {
-        notifyToast('Lỗi kết nối: ' + err.message);
+        notifyToast('Connection error: ' + err.message);
       }
     }
 
@@ -873,7 +885,7 @@ let profileStore = [];
 
     function hideLoginModal() {
       if (!activeAccountId) {
-        notifyToast('Vui lòng đăng nhập trước khi sử dụng hệ thống!');
+        notifyToast('Please sign in before accessing the portal.');
         return;
       }
       const modal = document.getElementById('login-modal');
@@ -935,7 +947,7 @@ let profileStore = [];
       activeProfile = profileStore.find(p => p.profile_id === pid) || profileStore[0];
       renderProfileHeaderContext();
       renderStreamCounter();
-      fetchCatalog();
+      fetchCatalog(false);
       fetchWatchlist();
       renderAccountView();
     }
@@ -967,38 +979,93 @@ let profileStore = [];
 
     function onSearchInput() {
       clearTimeout(searchDebounceTimer);
-      searchDebounceTimer = setTimeout(() => fetchCatalog(), 200);
+      searchDebounceTimer = setTimeout(() => fetchCatalog(false), 200);
     }
 
-    async function fetchCatalog() {
+    function loadMoreCatalog() {
+      fetchCatalog(true);
+    }
+
+    function toggleIncludeLocked(btn) {
+      includeLockedTiers = !includeLockedTiers;
+      btn.classList.toggle('active', includeLockedTiers);
+      btn.textContent = includeLockedTiers ? 'Show All Tiers' : 'My Plan Only';
+      fetchCatalog(false);
+    }
+
+    async function fetchCatalog(append = false) {
       if (!activeProfile) return;
       const container = document.getElementById('catalog-grid-container');
+      const subtitle = document.getElementById('catalog-count-subtitle');
+      const paginationBar = document.getElementById('catalog-pagination-bar');
+      const loadMoreBtn = document.getElementById('load-more-btn');
       const searchVal = document.getElementById('global-search').value.trim();
-      let url = `/api/catalog?profile_id=${activeProfile.profile_id}`;
+
+      if (!append) {
+        catalogOffset = 0;
+        catalogLoadedCount = 0;
+      }
+
+      let url = `/api/catalog?profile_id=${activeProfile.profile_id}&limit=${CATALOG_PAGE_SIZE}&offset=${catalogOffset}`;
+      if (includeLockedTiers) url += `&include_locked=true`;
       if (selectedContentType) url += `&type=${selectedContentType}`;
       if (searchVal) url += `&search=${encodeURIComponent(searchVal)}`;
 
       try {
         const res = await fetch(url);
         const json = await res.json();
-        container.innerHTML = '';
+        if (!append) {
+          container.innerHTML = '';
+        }
+
+        catalogTotal = json.total || (json.data ? json.data.length : 0);
+
         if (!json.success || !json.data || json.data.length === 0) {
-          container.innerHTML = '<div style="grid-column: 1/-1; padding: 48px; text-align: center; color: #888;">Không có nội dung phù hợp với gói dịch vụ hiện tại.</div>';
+          if (!append) {
+            container.innerHTML = '<div style="grid-column: 1/-1; padding: 48px; text-align: center; color: #888;">No matching titles found for this profile filter.</div>';
+            if (subtitle) subtitle.textContent = '0 titles found';
+            if (paginationBar) paginationBar.style.display = 'none';
+          }
           return;
         }
 
-        if (json.data.length > 0 && !searchVal && !selectedContentType) {
-          updateHeroBanner(json.data[0]);
+        if (!append && json.data.length > 0 && !searchVal && !selectedContentType) {
+          const playableHero = json.data.find(i => i.minimum_tier_id <= activeProfile.tier_id) || json.data[0];
+          updateHeroBanner(playableHero);
+        }
+
+        catalogLoadedCount += json.data.length;
+        catalogOffset += json.data.length;
+
+        if (subtitle) {
+          const scopeNote = includeLockedTiers
+            ? 'All tiers shown (upgrade prompt on locked titles)'
+            : `Filtered to ${activeProfile.tier_name} plan & below`;
+          subtitle.textContent = `Showing ${catalogLoadedCount.toLocaleString()} of ${catalogTotal.toLocaleString()} titles (${scopeNote})`;
+        }
+
+        if (paginationBar && loadMoreBtn) {
+          if (catalogLoadedCount < catalogTotal) {
+            const remaining = catalogTotal - catalogLoadedCount;
+            paginationBar.style.display = 'flex';
+            loadMoreBtn.textContent = `Load More Titles (+${Math.min(CATALOG_PAGE_SIZE, remaining)} of ${remaining.toLocaleString()} remaining)`;
+          } else {
+            paginationBar.style.display = 'none';
+          }
         }
 
         json.data.forEach(item => {
           const card = document.createElement('div');
           card.className = 'media-card';
           const tierReq = planCatalog[item.minimum_tier_id]?.name || 'Free';
+          const isLocked = item.minimum_tier_id > activeProfile.tier_id;
           const dur = item.duration_seconds ? `${Math.round(item.duration_seconds/60)}m` : '';
           const inList = item.in_watchlist;
           const listBtnClass = inList ? 'btn btn-in-list btn-icon-label' : 'btn btn-secondary btn-icon-label';
           const listBtnText = inList ? 'In List' : '+ My List';
+          const tierLabel = isLocked
+            ? `<span style="color:#FFA00A; font-weight:700;">Requires ${tierReq} (Locked)</span>`
+            : `<span style="color:#46D369; font-weight:700;">${tierReq} Plan</span>`;
 
           card.innerHTML = `
             <div class="card-banner">
@@ -1007,14 +1074,14 @@ let profileStore = [];
                 <span class="maturity-tag">${item.maturity_rating}</span>
               </div>
               <div style="font-size: 11px; color: #DDD;">
-                <span style="color:#FFA00A; font-weight:700;">Yêu cầu gói: ${tierReq}</span>
+                ${tierLabel}
                 ${dur ? ` &bull; <span>${dur}</span>` : ''}
               </div>
             </div>
             <div class="card-body">
               <div>
                 <h3 class="card-title">${escapeHtml(item.title_name)}</h3>
-                <p class="card-synopsis">${escapeHtml(item.synopsis || 'Chưa có mô tả.')}</p>
+                <p class="card-synopsis">${escapeHtml(item.synopsis || 'No synopsis available.')}</p>
               </div>
               <div class="card-actions-row">
                 <button class="btn btn-play btn-icon-label" onclick="startStream('${item.title_id}')">
@@ -1032,7 +1099,7 @@ let profileStore = [];
           container.appendChild(card);
         });
       } catch (err) {
-        container.innerHTML = `<div style="color:var(--netflix-red)">Lỗi tải catalog: ${err.message}</div>`;
+        container.innerHTML = `<div style="color:var(--netflix-red)">Failed to load catalog: ${err.message}</div>`;
       }
     }
 
@@ -1102,14 +1169,14 @@ let profileStore = [];
 
     async function rateTitle(titleId, hasWatched) {
       if (!hasWatched) {
-        alert('Chính sách phát trực tuyến: Bạn chưa xem tiêu đề này. Vui lòng nhấn Play Stream trước khi gửi đánh giá.');
+        alert('Streaming Policy: You have not watched this title yet. Please press Play Stream before submitting a rating.');
         return;
       }
-      const score = prompt('Đánh giá nội dung (1 đến 10):', '9');
+      const score = prompt('Rate this title (1 to 10):', '9');
       if (!score) return;
       const num = parseInt(score);
       if (isNaN(num) || num < 1 || num > 10) {
-        alert('Điểm số phải là số nguyên từ 1 đến 10.');
+        alert('Score must be an integer between 1 and 10.');
         return;
       }
       try {
@@ -1138,7 +1205,7 @@ let profileStore = [];
         document.getElementById('nav-list-count').textContent = json.count || 0;
         container.innerHTML = '';
         if (!json.success || !json.data || json.data.length === 0) {
-          container.innerHTML = '<div style="grid-column: 1/-1; padding: 48px; text-align: center; color: #888;">Danh sách yêu thích trống.</div>';
+          container.innerHTML = '<div style="grid-column: 1/-1; padding: 48px; text-align: center; color: #888;">Your watchlist is currently empty.</div>';
           return;
         }
         json.data.forEach(item => {
@@ -1154,8 +1221,8 @@ let profileStore = [];
             </div>
             <div class="card-body">
               <div>
-                <h3 class="card-title">${item.title_name}</h3>
-                <p class="card-synopsis">${item.synopsis || ''}</p>
+                <h3 class="card-title">${escapeHtml(item.title_name)}</h3>
+                <p class="card-synopsis">${escapeHtml(item.synopsis || '')}</p>
               </div>
               <div class="card-actions-row">
                 <button class="btn btn-play btn-icon-label" onclick="startStream('${item.title_id}')">Play</button>
@@ -1166,7 +1233,7 @@ let profileStore = [];
           container.appendChild(card);
         });
       } catch (err) {
-        container.innerHTML = `<div style="color:var(--netflix-red)">Lỗi: ${err.message}</div>`;
+        container.innerHTML = `<div style="color:var(--netflix-red)">Error: ${err.message}</div>`;
       }
     }
 
@@ -1199,7 +1266,7 @@ let profileStore = [];
         await fetchProfiles();
         await fetchAccounts();
       } catch (e) {
-        notifyToast('Lỗi kích hoạt lại: ' + e.message);
+        notifyToast('Reactivation failed: ' + e.message);
       }
     }
 
@@ -1222,34 +1289,34 @@ let profileStore = [];
       let renewalBtn = '';
 
       if (account.billing_status === 'CANCELLED') {
-        renewalBtn = `<button class="btn btn-danger" onclick="reactivateAccount(${account.account_id})">Kích Hoạt Lại Gói (Reactivate)</button>`;
+        renewalBtn = `<button class="btn btn-danger" onclick="reactivateAccount(${account.account_id})">Reactivate Plan</button>`;
       } else if (account.billing_status === 'SUSPENDED') {
-        renewalBtn = `<button class="btn btn-danger" onclick="payInvoice(${account.account_id})">Thanh Toán Nợ Quá Hạn (Kích Hoạt Lại)</button>`;
+        renewalBtn = `<button class="btn btn-danger" onclick="payInvoice(${account.account_id})">Pay Past-Due Invoice &amp; Reactivate</button>`;
       } else {
-        renewalBtn = `<button class="btn btn-secondary" onclick="payInvoice(${account.account_id})">Gia Hạn / Trả Trước (+30 Ngày)</button>`;
+        renewalBtn = `<button class="btn btn-secondary" onclick="payInvoice(${account.account_id})">Renew / Prepay (+30 Days)</button>`;
       }
 
       personalPanel.innerHTML = `
         <div class="account-hero-card">
           <div class="account-meta-col">
-            <span style="font-size:11px; text-transform:uppercase; color:#888; letter-spacing:0.8px; font-weight:700;">Tài Khoản Đang Đăng Nhập</span>
+            <span style="font-size:11px; text-transform:uppercase; color:#888; letter-spacing:0.8px; font-weight:700;">Signed-In Subscriber Account</span>
             <div class="account-email-heading">
               ${escapeHtml(account.email)}
               <span class="context-pill ${statusPillClass}">${account.billing_status}</span>
             </div>
             <div class="account-info-sub">
-              <span>Mã Tài Khoản: <b>#${account.account_id}</b></span>
+              <span>Account ID: <b>#${account.account_id}</b></span>
               <span>&bull;</span>
-              <span>Gói Hiện Tại: <b style="color:#FFF;">${account.tier_name} Plan</b></span>
+              <span>Current Plan: <b style="color:#FFF;">${account.tier_name} Plan</b></span>
               <span>&bull;</span>
-              <span>Ngày Gia Hạn Tiếp Theo: <b>${account.next_billing_date}</b></span>
+              <span>Next Billing Date: <b>${account.next_billing_date}</b></span>
               <span>&bull;</span>
-              <span>Đang Phát: <b>${account.active_streams} / ${account.max_streams} Luồng</b></span>
+              <span>Active Streams: <b>${account.active_streams} / ${account.max_streams}</b></span>
             </div>
           </div>
           <div style="display:flex; gap:10px; align-items:center;">
             ${renewalBtn}
-            ${account.billing_status !== 'CANCELLED' ? `<button class="btn btn-outline" onclick="cancelAccount(${account.account_id})">Hủy Gói</button>` : ''}
+            ${account.billing_status !== 'CANCELLED' ? `<button class="btn btn-outline" onclick="cancelAccount(${account.account_id})">Cancel Plan</button>` : ''}
           </div>
         </div>
       `;
@@ -1262,21 +1329,21 @@ let profileStore = [];
         const card = document.createElement('div');
         card.className = `plan-card ${isCurrent ? 'current' : ''}`;
         card.innerHTML = `
-          ${isCurrent ? '<div class="plan-active-tag">Gói Hiện Tại</div>' : ''}
+          ${isCurrent ? '<div class="plan-active-tag">Current Plan</div>' : ''}
           <div>
             <div class="plan-name">${p.name}</div>
-            <div class="plan-price">${p.price} <span>/ tháng</span></div>
+            <div class="plan-price">${p.price} <span>/ month</span></div>
             <p style="font-size:12px; color:#888; margin-bottom:14px;">${p.desc}</p>
             <ul class="plan-features">
-              <li><svg class="icon" style="color:var(--accent-green)" viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg> ${p.streams} Luồng phát đồng thời</li>
-              <li><svg class="icon" style="color:var(--accent-green)" viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg> Độ phân giải tối đa ${p.quality}</li>
-              <li><svg class="icon" style="color:var(--accent-green)" viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg> Xem trên TV, máy tính &amp; di động</li>
+              <li><svg class="icon" style="color:var(--accent-green)" viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg> ${p.streams} Concurrent streams</li>
+              <li><svg class="icon" style="color:var(--accent-green)" viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg> Up to ${p.quality} quality</li>
+              <li><svg class="icon" style="color:var(--accent-green)" viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg> Watch on TV, desktop &amp; mobile</li>
             </ul>
           </div>
           <div>
             ${isCurrent 
-              ? `<button class="btn btn-outline" style="width:100%; border-color:#888; cursor:default;" disabled>Đang Sử Dụng</button>` 
-              : `<button class="btn btn-danger" style="width:100%;" onclick="updateTier(${account.account_id}, ${p.id})">Chọn Gói ${p.name}</button>`
+              ? `<button class="btn btn-outline" style="width:100%; border-color:#888; cursor:default;" disabled>Current Plan</button>` 
+              : `<button class="btn btn-danger" style="width:100%;" onclick="updateTier(${account.account_id}, ${p.id})">Switch to ${p.name}</button>`
             }
           </div>
         `;
@@ -1292,7 +1359,7 @@ let profileStore = [];
 
     async function fetchSavedCards(accountId) {
       const container = document.getElementById('saved-cards-container');
-      container.innerHTML = '<div style="color:#888; font-size:13px;">Đang tải danh sách thẻ bảo mật...</div>';
+      container.innerHTML = '<div style="color:#888; font-size:13px;">Loading saved payment cards...</div>';
       try {
         const res = await fetch(`/api/cards?account_id=${accountId}`, {
           headers: {
@@ -1305,8 +1372,8 @@ let profileStore = [];
         if (!json.success || !json.data || json.data.length === 0) {
           container.innerHTML = `
             <div style="grid-column: 1/-1; padding: 24px; text-align: center; background: #1c1c1c; border-radius: 6px; border: 1px dashed #333;">
-              <p style="color: #888; font-size: 13px; margin-bottom: 10px;">Chưa có phương thức thanh toán nào được lưu cho tài khoản này.</p>
-              <button class="btn btn-danger" style="font-size:12px; padding:6px 14px;" onclick="openRegisterCardModal()">+ Thêm Thẻ Tín Dụng / Ghi Nợ</button>
+              <p style="color: #888; font-size: 13px; margin-bottom: 10px;">No payment methods registered on this account.</p>
+              <button class="btn btn-danger" style="font-size:12px; padding:6px 14px;" onclick="openRegisterCardModal()">+ Add Credit / Debit Card</button>
             </div>
           `;
           return;
@@ -1318,7 +1385,7 @@ let profileStore = [];
           cardDiv.innerHTML = `
             <div class="card-top-row">
               <span class="card-brand-badge">${escapeHtml(c.card_brand)}</span>
-              <button class="btn btn-outline" style="padding:2px 8px; font-size:11px;" onclick="deleteCard(${c.card_id}, ${c.account_id})">Xóa</button>
+              <button class="btn btn-outline" style="padding:2px 8px; font-size:11px;" onclick="deleteCard(${c.card_id}, ${c.account_id})">Remove</button>
             </div>
             <div class="card-digits">&bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull; ${escapeHtml(c.last_four)}</div>
             <div style="display:flex; justify-content:space-between; font-size:12px; color:#AAA;">
@@ -1330,14 +1397,14 @@ let profileStore = [];
           container.appendChild(cardDiv);
         });
       } catch (e) {
-        container.innerHTML = `<div style="color:var(--netflix-red)">Lỗi tải thẻ: ${e.message}</div>`;
+        container.innerHTML = `<div style="color:var(--netflix-red)">Error loading cards: ${e.message}</div>`;
       }
     }
 
     function toggleAdminTableView() {
       showAdminTable = !showAdminTable;
       document.getElementById('admin-table-wrapper').style.display = showAdminTable ? 'block' : 'none';
-      document.getElementById('toggle-admin-btn').innerHTML = showAdminTable ? 'Thu Gọn &uarr;' : 'Mở Rộng &darr;';
+      document.getElementById('toggle-admin-btn').innerHTML = showAdminTable ? 'Collapse Table &uarr;' : 'Expand Table &darr;';
 
       if (showAdminTable) {
         fetchAccounts();
@@ -1363,9 +1430,9 @@ let profileStore = [];
       `;
       accountsStore.forEach(a => {
         const statusClass = `pill-${a.billing_status.toLowerCase()}`;
-        let actionBtn = `<button class="btn btn-secondary" style="padding:3px 8px; font-size:11px;" onclick="payInvoice(${a.account_id})">Gia Hạn</button>`;
+        let actionBtn = `<button class="btn btn-secondary" style="padding:3px 8px; font-size:11px;" onclick="payInvoice(${a.account_id})">Renew</button>`;
         if (a.billing_status === 'CANCELLED') {
-          actionBtn = `<button class="btn btn-danger" style="padding:3px 8px; font-size:11px;" onclick="reactivateAccount(${a.account_id})">Kích Hoạt Lại</button>`;
+          actionBtn = `<button class="btn btn-danger" style="padding:3px 8px; font-size:11px;" onclick="reactivateAccount(${a.account_id})">Reactivate</button>`;
         }
         html += `
           <tr>
@@ -1385,31 +1452,31 @@ let profileStore = [];
       container.innerHTML = html;
     }
 
-async function updateTier(accId, tierId) {
-   if (tierId > 0 && savedCardsStore.length === 0) {
-     notifyToast('Bạn cần thêm Phương Thức Thanh Toán (Thẻ tín dụng/ghi nợ) trước khi nâng cấp lên gói trả phí!');
-     openRegisterCardModal();
-     return;
-   }
-   try {
-     const res = await fetch('/api/accounts/tier', {
-       method: 'POST',
-       headers: {'Content-Type': 'application/json'},
-       body: JSON.stringify({account_id: parseInt(accId), tier_id: parseInt(tierId)})
-     });
-     const json = await res.json();
-     notifyToast(json.message);
-     if (!res.ok) {
-       if (res.status === 402) openRegisterCardModal();
-       return;
-     }
-     await fetchProfiles();
-     await fetchAccounts();
-     fetchCatalog();
-   } catch (e) {
-     notifyToast('Error: ' + e.message);
-   }
- }
+    async function updateTier(accId, tierId) {
+      if (tierId > 0 && savedCardsStore.length === 0) {
+        notifyToast('Please register a payment card before upgrading to a paid plan.');
+        openRegisterCardModal();
+        return;
+      }
+      try {
+        const res = await fetch('/api/accounts/tier', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({account_id: parseInt(accId), tier_id: parseInt(tierId)})
+        });
+        const json = await res.json();
+        notifyToast(json.message);
+        if (!res.ok) {
+          if (res.status === 402) openRegisterCardModal();
+          return;
+        }
+        await fetchProfiles();
+        await fetchAccounts();
+        fetchCatalog(false);
+      } catch (e) {
+        notifyToast('Error: ' + e.message);
+      }
+    }
     async function payInvoice(accId) {
       try {
         const res = await fetch('/api/accounts/pay', {
@@ -1427,7 +1494,7 @@ async function updateTier(accId, tierId) {
     }
 
     async function cancelAccount(accId) {
-      if (!confirm('Bạn có chắc chắn muốn hủy gói thành viên của tài khoản này?')) return;
+      if (!confirm('Are you sure you want to cancel this account membership?')) return;
       try {
         const res = await fetch('/api/accounts/cancel', {
           method: 'POST',
@@ -1476,7 +1543,7 @@ async function updateTier(accId, tierId) {
       const cvv = document.getElementById('modal-card-cvv').value.trim();
 
       if (!name || num.length < 13 || !cvv) {
-        alert('Vui lòng điền đầy đủ và chính xác thông tin thẻ.');
+        alert('Please enter complete and valid card details.');
         return;
       }
 
@@ -1485,7 +1552,7 @@ async function updateTier(accId, tierId) {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-Account-ID': String(activeProfile.account_id) // <-- Thêm header định danh này
+            'X-Account-ID': String(activeProfile.account_id)
           },
           body: JSON.stringify({
             account_id: activeProfile.account_id,
@@ -1505,12 +1572,12 @@ async function updateTier(accId, tierId) {
           document.getElementById('modal-card-cvv').value = '';
         }
       } catch (e) {
-        notifyToast('Lỗi: ' + e.message);
+        notifyToast('Error: ' + e.message);
       }
     }
 
     async function deleteCard(cardId, accountId) {
-      if (!confirm('Bạn có chắc muốn xóa thẻ này?')) return;
+      if (!confirm('Are you sure you want to remove this payment card?')) return;
       try {
         const res = await fetch(`/api/cards?card_id=${cardId}&account_id=${accountId}`, {
           method: 'DELETE',
@@ -1522,7 +1589,7 @@ async function updateTier(accId, tierId) {
         notifyToast(json.message);
         fetchSavedCards(accountId);
       } catch (e) {
-        notifyToast('Lỗi: ' + e.message);
+        notifyToast('Error: ' + e.message);
       }
     }
 
@@ -1537,7 +1604,7 @@ async function updateTier(accId, tierId) {
         const json = await res.json();
         container.innerHTML = '';
         if (!json.success || !json.data || json.data.length === 0) {
-          container.innerHTML = '<div style="color:#888; padding:20px; text-align:center;">Không có luồng phát trực tuyến nào đang chiếm chỗ.</div>';
+          container.innerHTML = '<div style="color:#888; padding:20px; text-align:center;">No active playback sessions occupying slots.</div>';
           return;
         }
         json.data.forEach(s => {
@@ -1553,7 +1620,7 @@ async function updateTier(accId, tierId) {
           container.appendChild(row);
         });
       } catch (e) {
-        container.innerHTML = `<div style="color:var(--netflix-red)">Lỗi: ${e.message}</div>`;
+        container.innerHTML = `<div style="color:var(--netflix-red)">Error: ${e.message}</div>`;
       }
     }
 
@@ -1600,7 +1667,7 @@ async function updateTier(accId, tierId) {
     async function submitCreateAccount() {
        const email = document.getElementById('modal-new-email').value.trim();
        const password = document.getElementById('modal-new-password') ? document.getElementById('modal-new-password').value : '123456';
-       if (!email) { alert('Vui lòng nhập email khách hàng.'); return; }
+       if (!email) { alert('Please enter a customer email address.'); return; }
        try {
          const res = await fetch('/api/accounts', {
            method: 'POST',
@@ -1615,7 +1682,7 @@ async function updateTier(accId, tierId) {
            switchNavTab('account');
          }
        } catch (e) {
-         notifyToast('Lỗi: ' + e.message);
+         notifyToast('Error: ' + e.message);
        }
      }
 
@@ -1625,7 +1692,7 @@ async function updateTier(accId, tierId) {
       if (!activeProfile) return;
       const name = document.getElementById('modal-prof-name').value.trim();
       const isKids = document.getElementById('modal-prof-kids').checked;
-      if (!name) { alert('Vui lòng nhập tên profile.'); return; }
+      if (!name) { alert('Please enter a profile name.'); return; }
       try {
         const res = await fetch('/api/profiles', {
           method: 'POST',
@@ -1643,7 +1710,7 @@ async function updateTier(accId, tierId) {
           await fetchProfiles();
         }
       } catch (e) {
-        notifyToast('Lỗi: ' + e.message);
+        notifyToast('Error: ' + e.message);
       }
     }
 
@@ -1904,9 +1971,9 @@ async function updateTier(accId, tierId) {
 
     function setCatalogType(t, btn) {
       selectedContentType = t;
-      document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.filter-pill[data-type-pill]').forEach(p => p.classList.remove('active'));
       if (btn) btn.classList.add('active');
-      fetchCatalog();
+      fetchCatalog(false);
     }
 
     function notifyToast(msg) {
