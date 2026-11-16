@@ -780,6 +780,7 @@
           <button class="btn btn-secondary" style="font-size:11px; justify-content:flex-start;" onclick="loadAuthenticatedSession(3)">#3 Charlie (Basic)</button>
           <button class="btn btn-secondary" style="font-size:11px; justify-content:flex-start;" onclick="loadAuthenticatedSession(4)">#4 David (Free)</button>
           <button class="btn btn-secondary" style="font-size:11px; justify-content:flex-start; grid-column: 1/-1;" onclick="loadAuthenticatedSession(5)">#5 Emma (Suspended)</button>
+          <button class="btn btn-danger" style="font-size:11px; justify-content:flex-start;" onclick="loginAsDBA()">DBA Admin (All Accounts)</button>
         </div>
       </div>
     </div>
@@ -876,6 +877,12 @@
       } catch (err) {
         notifyToast('Connection error: ' + err.message);
       }
+    }
+
+    async function loginAsDBA() {
+      document.getElementById('login-email-input').value = 'dba_admin@ptithcm.edu.vn';
+      document.getElementById('login-password-input').value = 'StrongDbaPass#2026';
+      await submitLogin();
     }
 
     function showLoginModal(isInitialGate = false) {
@@ -1297,8 +1304,13 @@
     // ==========================================
 
     async function fetchAccounts() {
+      if (!activeAccountId) return;
       try {
-        const res = await fetch('/api/accounts');
+        const res = await fetch('/api/accounts', {
+          headers: {
+            'X-Account-ID': String(activeAccountId)
+          } 
+        });
         const json = await res.json();
         if (json.success && json.data) {
           accountsStore = json.data;
@@ -1313,7 +1325,10 @@
       try {
         const res = await fetch('/api/accounts/reactivate', {
           method: 'POST',
-          headers: {'Content-Type': 'application/json'},
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Account-ID': String(activeAccountId)
+          },
           body: JSON.stringify({ account_id: parseInt(accId) })
         });
         const json = await res.json();
@@ -1325,8 +1340,24 @@
       }
     }
 
-    function renderAccountView() {
+    async function renderAccountView() {
       if (!activeProfile) return;
+      if (!activeAccountId) return;
+      try {
+          const res = await fetch('/api/accounts', {
+            headers: {
+              'X-Account-ID': String(activeAccountId)
+            }
+          });
+          const json = await res.json();
+          if (json.success && json.data) {
+            accountsStore = json.data;
+            renderAccountView();
+          }
+        } catch (err) {
+          console.error('Error fetching accounts:', err);
+        }
+
       const account = accountsStore.find(a => a.account_id === activeProfile.account_id) || {
         account_id: activeProfile.account_id,
         email: 'user@netflix.com',
@@ -1344,12 +1375,14 @@
       let renewalBtn = '';
 
       if (account.billing_status === 'CANCELLED') {
-        renewalBtn = `<button class="btn btn-danger" onclick="reactivateAccount(${account.account_id})">Reactivate Plan</button>`;
-      } else if (account.billing_status === 'SUSPENDED') {
-        renewalBtn = `<button class="btn btn-danger" onclick="payInvoice(${account.account_id})">Pay Past-Due Invoice &amp; Reactivate</button>`;
-      } else {
-        renewalBtn = `<button class="btn btn-secondary" onclick="payInvoice(${account.account_id})">Renew / Prepay (+30 Days)</button>`;
-      }
+          renewalBtn = `<button class="btn btn-danger" onclick="reactivateAccount(${account.account_id})">Reactivate Plan</button>`;
+        } else if (account.billing_status === 'SUSPENDED') {
+          renewalBtn = `<button class="btn btn-danger" onclick="payInvoice(${account.account_id})">Pay Past-Due Invoice &amp; Reactivate</button>`;
+        } else if (account.tier_id === 0) {
+          renewalBtn = `<button class="btn btn-outline" style="opacity:0.6; cursor:not-allowed;" disabled>Free Plan (No Renewal)</button>`;
+        } else {
+          renewalBtn = `<button class="btn btn-secondary" onclick="payInvoice(${account.account_id})">Renew / Prepay (+30 Days)</button>`;
+        }
 
       personalPanel.innerHTML = `
         <div class="account-hero-card">
@@ -1408,8 +1441,21 @@
       // 3. Saved Cards
       fetchSavedCards(account.account_id);
 
-      // 4. Admin All-Accounts Table
-      renderAdminAccountsTable();
+      // 4. DBA-Only All-Accounts Table
+      const dbaSection = document.getElementById('dba-admin-section');
+      const isDBA = Boolean(account.is_dba || (account.email && account.email.toLowerCase().startsWith('dba_')));
+      if (dbaSection) {
+        dbaSection.style.display = isDBA ? 'block' : 'none';
+      }
+      if (isDBA) {
+        renderAdminAccountsTable();
+      } else {
+        showAdminTable = false;
+        const wrapper = document.getElementById('admin-table-wrapper');
+        if (wrapper) wrapper.style.display = 'none';
+        const viewport = document.getElementById('accounts-table-viewport');
+        if (viewport) viewport.innerHTML = '';
+      }
     }
 
     async function fetchSavedCards(accountId) {
@@ -1516,7 +1562,10 @@
       try {
         const res = await fetch('/api/accounts/tier', {
           method: 'POST',
-          headers: {'Content-Type': 'application/json'},
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Account-ID': String(activeAccountId)
+          },
           body: JSON.stringify({account_id: parseInt(accId), tier_id: parseInt(tierId)})
         });
         const json = await res.json();
@@ -1532,15 +1581,28 @@
         notifyToast('Error: ' + e.message);
       }
     }
+
     async function payInvoice(accId) {
+      if (accId === activeAccountId && savedCardsStore.length === 0) {
+        notifyToast('Please register a payment card before renewing your subscription.');
+        openRegisterCardModal();
+        return;
+      }
       try {
         const res = await fetch('/api/accounts/pay', {
           method: 'POST',
-          headers: {'Content-Type': 'application/json'},
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Account-ID': String(activeAccountId)
+          },
           body: JSON.stringify({account_id: parseInt(accId)})
         });
         const json = await res.json();
         notifyToast(json.message);
+        if (!res.ok) {
+          if (res.status === 402) openRegisterCardModal();
+          return;
+        }
         await fetchProfiles();
         await fetchAccounts();
       } catch (e) {
@@ -1553,7 +1615,10 @@
       try {
         const res = await fetch('/api/accounts/cancel', {
           method: 'POST',
-          headers: {'Content-Type': 'application/json'},
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Account-ID': String(activeAccountId)
+          },
           body: JSON.stringify({account_id: parseInt(accId)})
         });
         const json = await res.json();
