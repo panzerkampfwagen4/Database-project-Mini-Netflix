@@ -792,6 +792,8 @@
     let profileStore = [];
     let accountsStore = [];
     let savedCardsStore = [];
+    let loadedCardsAccountId = null;
+    let cardsFetchController = null;
     let activeAccountId = null;
     let activeProfile = null;
     let selectedContentType = '';
@@ -839,6 +841,8 @@
       activeAccountId = parseInt(accountId, 10);
       sessionStorage.setItem('activeAccountId', String(activeAccountId));
       activeProfile = null;
+      loadedCardsAccountId = null;
+      savedCardsStore = [];
 
       await fetchProfiles();
       await Promise.all([
@@ -1458,19 +1462,34 @@
       }
     }
 
-    async function fetchSavedCards(accountId) {
+    async function fetchSavedCards(accountId, forceLoadingIndicator = false) {
       const container = document.getElementById('saved-cards-container');
-      container.innerHTML = '<div style="color:#888; font-size:13px;">Loading saved payment cards...</div>';
+      if (!container) return;
+
+      // Cancel any previous in-flight card request so responses never collide
+      if (cardsFetchController) {
+        cardsFetchController.abort();
+      }
+      cardsFetchController = new AbortController();
+
+      // Only show the loading placeholder if switching accounts or explicitly forced
+      if (forceLoadingIndicator || loadedCardsAccountId !== accountId) {
+        container.innerHTML = '<div style="color:#888; font-size:13px;">Loading saved payment cards...</div>';
+      }
+
       try {
         const res = await fetch(`/api/cards?account_id=${accountId}`, {
           headers: {
             'X-Account-ID': String(accountId)
-          }
+          },
+          signal: cardsFetchController.signal
         });
         const json = await res.json();
         savedCardsStore = (json.success && Array.isArray(json.data)) ? json.data : [];
+        loadedCardsAccountId = accountId;
+
         container.innerHTML = '';
-        if (!json.success || !json.data || json.data.length === 0) {
+        if (!json.success || savedCardsStore.length === 0) {
           container.innerHTML = `
             <div style="grid-column: 1/-1; padding: 24px; text-align: center; background: #1c1c1c; border-radius: 6px; border: 1px dashed #333;">
               <p style="color: #888; font-size: 13px; margin-bottom: 10px;">No payment methods registered on this account.</p>
@@ -1480,7 +1499,7 @@
           return;
         }
 
-        json.data.forEach(c => {
+        savedCardsStore.forEach(c => {
           const cardDiv = document.createElement('div');
           cardDiv.className = 'saved-card-box';
           cardDiv.innerHTML = `
@@ -1498,6 +1517,7 @@
           container.appendChild(cardDiv);
         });
       } catch (e) {
+        if (e.name === 'AbortError') return; // Ignore intentionally cancelled duplicate requests
         container.innerHTML = `<div style="color:var(--netflix-red)">Error loading cards: ${e.message}</div>`;
       }
     }
