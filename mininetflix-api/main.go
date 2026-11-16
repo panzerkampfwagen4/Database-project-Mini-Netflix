@@ -1470,9 +1470,9 @@ func main() {
 
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8080"
+		port = "10000"
 	}
-
+	
 	mux := http.NewServeMux()
 
 	// Portal UI & Health
@@ -1506,13 +1506,13 @@ func main() {
 	mux.HandleFunc("/api/cards", cardsHandler)
 
 	server := &http.Server{
-		Addr:         ":" + port,
+		Addr:         "0.0.0.0:" + port,
 		Handler:      corsMiddleware(mux),
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 	}
 
-	log.Printf("Mini-Netflix Portal & REST API running on http://localhost:%s", port)
+	log.Printf("Starting server on 0.0.0.0:%s", port)
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("Server stopped: %v", err)
 	}
