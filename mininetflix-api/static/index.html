@@ -2105,6 +2105,7 @@
       if (btn) btn.classList.add('active');
       const pane = document.getElementById('view-' + tabName);
       if (pane) pane.classList.add('active');
+      window.scrollTo({ top: 0, behavior: 'instant' });
       if (tabName === 'watchlist') fetchWatchlist();
       if (tabName === 'account') fetchAccounts();
     }
