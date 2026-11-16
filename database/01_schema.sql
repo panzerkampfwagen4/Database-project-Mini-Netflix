@@ -17,7 +17,7 @@ CREATE TABLE account (
     email VARCHAR(320) NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     billing_status VARCHAR(20) NOT NULL,
-    current_tier_id TINYINT NOT NULL,
+    current_tier_id TINYINT NOT NULL DEFAULT 0,
     pending_tier_id TINYINT NULL,
     pending_tier_effective_date DATETIME NULL,
     registration_date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
