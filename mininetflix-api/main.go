@@ -1230,7 +1230,7 @@ func cardsHandler(w http.ResponseWriter, r *http.Request) {
 
 		writeJSON(w, http.StatusCreated, APIResponse{
 			Success: true,
-			Message: "Card tokenized and securely vaulted!",
+			Message: "Thẻ đã được mã hóa bảo mật (Tokenized) thành công!",
 			Data: map[string]any{
 				"card_id":   cardID,
 				"brand":     cardBrand,
@@ -1271,7 +1271,7 @@ func cardsHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		writeJSON(w, http.StatusOK, APIResponse{Success: true, Message: "Payment method deleted successfully!"})
+		writeJSON(w, http.StatusOK, APIResponse{Success: true, Message: "Đã xóa phương thức thanh toán thành công!"})
 
 	default:
 		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
@@ -1431,7 +1431,7 @@ func updateAccountTierHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if cardCount == 0 {
-			writeError(w, http.StatusPaymentRequired, "Payment required: You must register at least one payment method before upgrading to a paid tier!")
+			writeError(w, http.StatusPaymentRequired, "Yêu cầu thanh toán: Bạn phải đăng ký ít nhất 1 thẻ thanh toán (Payment Method) trước khi nâng cấp lên gói trả phí!")
 			return
 		}
 	}
@@ -1443,7 +1443,7 @@ func updateAccountTierHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, APIResponse{
 		Success: true,
-		Message: fmt.Sprintf("Subscription tier updated successfully for Account #%d!", req.AccountID),
+		Message: fmt.Sprintf("Đã cập nhật gói dịch vụ cho Account #%d thành công!", req.AccountID),
 	})
 }
 
