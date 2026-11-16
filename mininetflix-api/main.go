@@ -70,6 +70,7 @@ type AccountSummaryDTO struct {
 	NextBillingDate string  `json:"next_billing_date"`
 	ActiveStreams   int     `json:"active_streams"`
 	MaxStreams      int     `json:"max_streams"`
+	IsDBA           bool    `json:"is_dba"`
 }
 
 type ActiveSessionDTO struct {
@@ -113,6 +114,7 @@ type LoginResponse struct {
 	AccountID int    `json:"account_id"`
 	Email     string `json:"email"`
 	TierName  string `json:"tier_name"`
+	IsDBA     bool   `json:"is_dba"`
 }
 
 type UpdateTierRequest struct {
@@ -212,6 +214,63 @@ func normalizeBillingStatus(raw string) string {
 		return "CANCELLED"
 	default:
 		return "ACTIVE"
+	}
+}
+
+func isDBAEmail(email string) bool {
+	lower := strings.ToLower(strings.TrimSpace(email))
+	return lower == "dba_admin@ptithcm.edu.vn" || strings.HasPrefix(lower, "dba_") || strings.HasPrefix(lower, "dba@")
+}
+
+func isDBAAccount(accountID int) bool {
+	if accountID <= 0 {
+		return false
+	}
+	var email string
+	if err := db.QueryRow("SELECT email FROM account WHERE account_id = ?", accountID).Scan(&email); err != nil {
+		return false
+	}
+	return isDBAEmail(email)
+}
+
+func authorizeAccountAction(w http.ResponseWriter, r *http.Request, targetAccountID int) bool {
+	callerAccountID := r.Header.Get("X-Account-ID")
+	if callerAccountID == "" {
+		writeError(w, http.StatusUnauthorized, "Authentication required: missing X-Account-ID header")
+		return false
+	}
+	callerID, err := strconv.Atoi(callerAccountID)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "Invalid X-Account-ID header")
+		return false
+	}
+	if callerID != targetAccountID && !isDBAAccount(callerID) {
+		writeError(w, http.StatusForbidden, "Access denied: you can only manage your own account")
+		return false
+	}
+	return true
+}
+
+// ensureDBAAccount provisions the DBA account if not already present in the database
+func ensureDBAAccount() {
+	var existingID int
+	err := db.QueryRow("SELECT account_id FROM account WHERE email = 'dba_admin@ptithcm.edu.vn'").Scan(&existingID)
+	if err == sql.ErrNoRows {
+		res, execErr := db.Exec(`
+			INSERT INTO account (email, password_hash, billing_status, current_tier_id, registration_date, next_billing_date)
+			VALUES ('dba_admin@ptithcm.edu.vn', 'StrongDbaPass#2026', 'ACTIVE', 3, CURRENT_DATE, DATE_ADD(CURRENT_DATE, INTERVAL 365 DAY))
+		`)
+		if execErr != nil {
+			res, execErr = db.Exec(`
+				INSERT INTO account (email, password_hash, billing_status, current_tier_id, registration_date, next_billing_date)
+				VALUES ('dba_admin@ptithcm.edu.vn', 'StrongDbaPass#2026', 'Active', 3, CURRENT_DATE, DATE_ADD(CURRENT_DATE, INTERVAL 365 DAY))
+			`)
+		}
+		if execErr == nil {
+			if newID, idErr := res.LastInsertId(); idErr == nil && newID > 0 {
+				_, _ = db.Exec(`INSERT INTO profile (account_id, profile_name, is_kids_profile) VALUES (?, 'DBA Admin', FALSE)`, newID)
+			}
+		}
 	}
 }
 
@@ -1190,15 +1249,15 @@ func cardsHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-   		 if callerAccountID == "" {
-        	writeError(w, http.StatusUnauthorized, "Authentication required: missing session credentials")
-        	return
-    	}
+		if callerAccountID == "" {
+			writeError(w, http.StatusUnauthorized, "Authentication required: missing session credentials")
+			return
+		}
 
 		if callerAccountID == "" || callerAccountID != accountIDStr {
-        	writeError(w, http.StatusForbidden, "Unauthorized to delete payment method")
-        	return
-    	}
+			writeError(w, http.StatusForbidden, "Unauthorized to delete payment method")
+			return
+		}
 
 		res, err := db.Exec("DELETE FROM credit_card WHERE card_id = ? AND account_id = ?", cardIDStr, accountIDStr)
 		if err != nil {
@@ -1223,7 +1282,19 @@ func cardsHandler(w http.ResponseWriter, r *http.Request) {
 func accountsHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		rows, err := db.Query(`
+		callerAccountID := r.Header.Get("X-Account-ID")
+		if callerAccountID == "" {
+			writeError(w, http.StatusUnauthorized, "Authentication required: missing X-Account-ID header")
+			return
+		}
+		callerID, err := strconv.Atoi(callerAccountID)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "Invalid X-Account-ID header")
+			return
+		}
+
+		isDBA := isDBAAccount(callerID)
+		baseQuery := `
 			SELECT 
 				a.account_id,
 				a.email,
@@ -1237,8 +1308,13 @@ func accountsHandler(w http.ResponseWriter, r *http.Request) {
 				st.max_concurrent_streams
 			FROM account a
 			JOIN subscription_tier st ON a.current_tier_id = st.tier_id
-			ORDER BY a.account_id ASC
-		`)
+		`
+		var rows *sql.Rows
+		if isDBA {
+			rows, err = db.Query(baseQuery + " ORDER BY a.account_id ASC")
+		} else {
+			rows, err = db.Query(baseQuery+" WHERE a.account_id = ? ORDER BY a.account_id ASC", callerID)
+		}
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -1265,6 +1341,7 @@ func accountsHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			acc.BillingStatus = normalizeBillingStatus(rawStatus)
+			acc.IsDBA = isDBAEmail(acc.Email)
 			if nextDate.Valid {
 				acc.NextBillingDate = nextDate.Time.Format("2006-01-02")
 			} else {
@@ -1336,6 +1413,9 @@ func updateAccountTierHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "Invalid JSON")
 		return
 	}
+	if !authorizeAccountAction(w, r, req.AccountID) {
+		return
+	}
 
 	if req.TierID < 0 || req.TierID > 3 {
 		writeError(w, http.StatusBadRequest, "Invalid tier_id (must be 0 to 3)")
@@ -1378,8 +1458,48 @@ func payAccountInvoiceHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "Invalid JSON")
 		return
 	}
+	if !authorizeAccountAction(w, r, req.AccountID) {
+		return
+	}
 
-	_, err := db.Exec(`
+	// Verify the account has a paid tier and a registered payment card on file
+	var currentTierID int
+	var monthlyPrice float64
+	err := db.QueryRow(`
+		SELECT a.current_tier_id, st.monthly_price
+		FROM account a
+		JOIN subscription_tier st ON a.current_tier_id = st.tier_id
+		WHERE a.account_id = ?
+	`, req.AccountID).Scan(&currentTierID, &monthlyPrice)
+	if err == sql.ErrNoRows {
+		writeError(w, http.StatusNotFound, "Account not found")
+		return
+	} else if err != nil {
+		writeError(w, http.StatusInternalServerError, "Failed to verify account tier")
+		return
+	}
+
+	if currentTierID == 0 {
+		writeError(w, http.StatusBadRequest, "Free plan does not require paid renewal. Please select a paid subscription tier to upgrade.")
+		return
+	}
+
+	var cardID int
+	err = db.QueryRow(`
+		SELECT card_id FROM credit_card
+		WHERE account_id = ?
+		ORDER BY is_default DESC, card_id DESC
+		LIMIT 1
+	`, req.AccountID).Scan(&cardID)
+	if err == sql.ErrNoRows {
+		writeError(w, http.StatusPaymentRequired, "Payment required: You must register at least 1 payment card (Payment Method) before renewing your subscription!")
+		return
+	} else if err != nil {
+		writeError(w, http.StatusInternalServerError, "Failed to verify payment methods")
+		return
+	}
+
+	_, err = db.Exec(`
 		UPDATE account 
 		SET billing_status = 'ACTIVE', next_billing_date = DATE_ADD(CURRENT_DATE, INTERVAL 30 DAY)
 		WHERE account_id = ?
@@ -1396,9 +1516,18 @@ func payAccountInvoiceHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Record transaction in payment_transaction audit ledger
+	txBytes := make([]byte, 12)
+	_, _ = rand.Read(txBytes)
+	gatewayRef := fmt.Sprintf("ch_mock_%s", hex.EncodeToString(txBytes))
+	_, _ = db.Exec(`
+		INSERT INTO payment_transaction (account_id, card_id, amount, currency, status, gateway_reference)
+		VALUES (?, ?, ?, 'USD', 'SUCCESS', ?)
+	`, req.AccountID, cardID, monthlyPrice, gatewayRef)
+
 	writeJSON(w, http.StatusOK, APIResponse{
 		Success: true,
-		Message: fmt.Sprintf("Payment processed for Account #%d. Billing status is now ACTIVE.", req.AccountID),
+		Message: fmt.Sprintf("Payment of $%.2f processed for Account #%d. Billing status is now ACTIVE.", monthlyPrice, req.AccountID),
 	})
 }
 
@@ -1413,7 +1542,9 @@ func cancelAccountHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "Invalid JSON")
 		return
 	}
-
+	if !authorizeAccountAction(w, r, req.AccountID) {
+		return
+	}
 	_, err := db.Exec(`UPDATE account SET billing_status = 'CANCELLED', cancelled_at = NOW() WHERE account_id = ?`, req.AccountID)
 	if err != nil {
 		_, err = db.Exec(`UPDATE account SET billing_status = 'Inactive', cancelled_at = NOW() WHERE account_id = ?`, req.AccountID)
@@ -1473,7 +1604,7 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, APIResponse{
 		Success: true,
 		Message: "Login successful",
-		Data:    LoginResponse{AccountID: accID, Email: email, TierName: tierName},
+		Data:    LoginResponse{AccountID: accID, Email: email, TierName: tierName, IsDBA: isDBAEmail(email)},
 	})
 }
 
@@ -1535,7 +1666,9 @@ func reactivateAccountHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "Invalid JSON")
 		return
 	}
-
+	if !authorizeAccountAction(w, r, req.AccountID) {
+		return
+	}
 	_, err := db.Exec(`
 		UPDATE account
 		SET billing_status = 'ACTIVE', cancelled_at = NULL, next_billing_date = DATE_ADD(CURRENT_DATE, INTERVAL 30 DAY)
@@ -1582,6 +1715,8 @@ func main() {
 	} else {
 		log.Println("Connected to MySQL successfully.")
 	}
+
+	ensureDBAAccount()
 
 	port := os.Getenv("PORT")
 	if port == "" {
