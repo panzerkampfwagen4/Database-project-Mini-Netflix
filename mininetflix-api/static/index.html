@@ -497,11 +497,11 @@
         <div id="saved-cards-container" class="cards-list-grid"></div>
       </div>
 
-      <!-- Course Admin / All Accounts Table (Collapsible) -->
-      <div style="border-top:1px solid #282828; padding-top:20px; margin-top:20px;">
+<!-- Course Admin / All Accounts Table (DBA Only) -->
+      <div id="dba-admin-section" style="display:none; border-top:1px solid #282828; padding-top:20px; margin-top:20px;">
         <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" onclick="toggleAdminTableView()">
           <div>
-            <span style="font-size:11px; text-transform:uppercase; letter-spacing:1px; color:#888; font-weight:700;">Academic Examination Mode</span>
+            <span style="font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--accent-yellow); font-weight:700;">DBA Superuser Privilege</span>
             <h4 style="font-size:14px; color:#EEE;">View Multi-Tenant System Database (All Accounts)</h4>
           </div>
           <button class="btn btn-outline" id="toggle-admin-btn" style="padding:4px 10px; font-size:11px;">Expand Table &darr;</button>
@@ -510,7 +510,6 @@
           <div id="accounts-table-viewport"></div>
         </div>
       </div>
-    </div>
 
     <!-- VIEW 4: RULES AUDIT -->
     <div id="view-audit" class="tab-pane">
