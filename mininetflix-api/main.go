@@ -30,6 +30,7 @@ var db *sql.DB
 type APIResponse struct {
 	Success bool   `json:"success"`
 	Count   int    `json:"count,omitempty"`
+	Total   int    `json:"total,omitempty"`
 	Message string `json:"message,omitempty"`
 	Data    any    `json:"data,omitempty"`
 }
@@ -180,13 +181,28 @@ func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Account-ID")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+func tierDisplayName(tierID int) string {
+	switch tierID {
+	case 0:
+		return "Free"
+	case 1:
+		return "Basic"
+	case 2:
+		return "Standard"
+	case 3:
+		return "Premium"
+	default:
+		return fmt.Sprintf("Tier %d", tierID)
+	}
 }
 
 // normalizeBillingStatus standardizes DB status values for index.html UI badges
@@ -341,7 +357,25 @@ func catalogHandler(w http.ResponseWriter, r *http.Request) {
 	queryParams := r.URL.Query()
 	profileIDStr := queryParams.Get("profile_id")
 	search := queryParams.Get("search")
+	searchSynopsis := strings.EqualFold(queryParams.Get("search_synopsis"), "true")
 	contentType := queryParams.Get("type")
+	includeLocked := strings.EqualFold(queryParams.Get("include_locked"), "true")
+
+	limit := 60
+	if lStr := queryParams.Get("limit"); lStr != "" {
+		if parsed, err := strconv.Atoi(lStr); err == nil && parsed > 0 {
+			if parsed > 240 {
+				parsed = 240
+			}
+			limit = parsed
+		}
+	}
+	offset := 0
+	if oStr := queryParams.Get("offset"); oStr != "" {
+		if parsed, err := strconv.Atoi(oStr); err == nil && parsed >= 0 {
+			offset = parsed
+		}
+	}
 
 	if profileIDStr == "" {
 		writeError(w, http.StatusBadRequest, "Missing required query parameter: profile_id")
@@ -372,6 +406,45 @@ func catalogHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	whereClause := " WHERE 1=1 "
+	var filterArgs []any
+
+	if !includeLocked {
+		whereClause += " AND ct.minimum_tier_id <= ? "
+		filterArgs = append(filterArgs, currentTierID)
+	}
+	if isKids {
+		whereClause += " AND ct.maturity_rating NOT IN ('R', 'NC-17', 'TV-MA') "
+	}
+	if contentType != "" {
+		whereClause += " AND ct.content_type = ? "
+		filterArgs = append(filterArgs, contentType)
+	}
+	if trimmedSearch := strings.TrimSpace(search); trimmedSearch != "" {
+		tokens := strings.Fields(strings.ToLower(trimmedSearch))
+		if len(tokens) > 6 {
+			tokens = tokens[:6] 
+		}
+		for _, tok := range tokens {
+			escaped := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(tok)
+			pattern := "%" + escaped + "%"
+			if searchSynopsis {
+				whereClause += " AND (LOWER(ct.title_name) LIKE ? OR LOWER(COALESCE(ct.synopsis, '')) LIKE ?) "
+				filterArgs = append(filterArgs, pattern, pattern)
+			} else {
+				whereClause += " AND LOWER(ct.title_name) LIKE ? "
+				filterArgs = append(filterArgs, pattern)
+			}
+		}
+	}
+
+	var totalCount int
+	countQuery := "SELECT COUNT(*) FROM catalog_title ct" + whereClause
+	if err := db.QueryRow(countQuery, filterArgs...).Scan(&totalCount); err != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("Catalog count failed: %v", err))
+		return
+	}
+
 	query := `
 		SELECT 
 			ct.title_id, 
@@ -396,23 +469,12 @@ func catalogHandler(w http.ResponseWriter, r *http.Request) {
 		FROM catalog_title ct
 		LEFT JOIN movie_title mt ON ct.title_id = mt.title_id
 		LEFT JOIN streamable_media_unit smu ON mt.media_unit_id = smu.media_unit_id
-		WHERE ct.minimum_tier_id <= ?
-	`
-	args := []any{profileID, profileID, currentTierID}
+	` + whereClause + " ORDER BY ct.title_name ASC LIMIT ? OFFSET ?;"
 
-	if isKids {
-		query += " AND ct.maturity_rating NOT IN ('R', 'NC-17', 'TV-MA') "
-	}
-	if contentType != "" {
-		query += " AND ct.content_type = ? "
-		args = append(args, contentType)
-	}
-	if search != "" {
-		query += " AND ct.title_name LIKE ? "
-		args = append(args, "%"+search+"%")
-	}
-
-	query += " ORDER BY ct.title_name ASC LIMIT 60;"
+	args := make([]any, 0, 2+len(filterArgs)+2)
+	args = append(args, profileID, profileID)
+	args = append(args, filterArgs...)
+	args = append(args, limit, offset)
 
 	rows, err := db.Query(query, args...)
 	if err != nil {
@@ -462,7 +524,7 @@ func catalogHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, APIResponse{Success: true, Count: len(items), Data: items})
+	writeJSON(w, http.StatusOK, APIResponse{Success: true, Count: len(items), Total: totalCount, Data: items})
 }
 
 // 2. POST /api/movies: Register a new movie across the EER Subclasses
@@ -794,12 +856,13 @@ func startSessionHandler(w http.ResponseWriter, r *http.Request) {
 
 	var maxStreams int
 	var rawStatus string
+	var currentTierID int
 	err := db.QueryRow(`
-		SELECT st.max_concurrent_streams, a.billing_status
+		SELECT st.max_concurrent_streams, a.billing_status, a.current_tier_id
 		FROM account a
 		JOIN subscription_tier st ON a.current_tier_id = st.tier_id
 		WHERE a.account_id = ?
-	`, req.AccountID).Scan(&maxStreams, &rawStatus)
+	`, req.AccountID).Scan(&maxStreams, &rawStatus, &currentTierID)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "Account or tier not found")
 		return
@@ -813,6 +876,29 @@ func startSessionHandler(w http.ResponseWriter, r *http.Request) {
 	if normStatus == "CANCELLED" {
 		writeError(w, http.StatusForbidden, "Account membership is CANCELLED. Please reactivate your plan to stream.")
 		return
+	}
+
+	if req.TitleID != "" {
+		var minTier int
+		var maturityRating string
+		if err := db.QueryRow(`SELECT minimum_tier_id, maturity_rating FROM catalog_title WHERE title_id = ?`, req.TitleID).Scan(&minTier, &maturityRating); err == nil {
+			if minTier > currentTierID {
+				writeError(w, http.StatusForbidden, fmt.Sprintf(
+					"Access Denied (BR-01): Title requires %s plan (Account is currently on %s plan). Please upgrade in Account & Billing.",
+					tierDisplayName(minTier), tierDisplayName(currentTierID),
+				))
+				return
+			}
+			var isKids bool
+			if err := db.QueryRow(`SELECT is_kids_profile FROM profile WHERE profile_id = ? AND account_id = ?`, req.ProfileID, req.AccountID).Scan(&isKids); err == nil && isKids {
+				if maturityRating == "R" || maturityRating == "NC-17" || maturityRating == "TV-MA" {
+					writeError(w, http.StatusForbidden, fmt.Sprintf(
+						"Access Denied (BR-03): Content rated %s is restricted on Kids profiles.", maturityRating,
+					))
+					return
+				}
+			}
+		}
 	}
 
 	var activeCount int
@@ -1269,24 +1355,32 @@ func accountsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, http.StatusOK, APIResponse{Success: true, Count: len(accounts), Data: accounts})
 
-	case http.MethodPost:
+case http.MethodPost:
 		var req CreateAccountRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeError(w, http.StatusBadRequest, "Invalid JSON")
 			return
 		}
+		if strings.TrimSpace(req.Email) == "" {
+			writeError(w, http.StatusBadRequest, "Email is required")
+			return
+		}
 
-		mockHash := "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy"
+		passwordToStore := req.Password
+		if passwordToStore == "" {
+			passwordToStore = "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy"
+		}
+
+		// Force current_tier_id = 0 (Free Tier) for all newly registered accounts
 		res, err := db.Exec(`
 			INSERT INTO account (email, password_hash, billing_status, current_tier_id, registration_date, next_billing_date)
-			VALUES (?, ?, 'ACTIVE', ?, CURRENT_DATE, DATE_ADD(CURRENT_DATE, INTERVAL 30 DAY))
-		`, req.Email, mockHash, req.TierID)
+			VALUES (?, ?, 'ACTIVE', 0, CURRENT_DATE, DATE_ADD(CURRENT_DATE, INTERVAL 30 DAY))
+		`, req.Email, passwordToStore)
 		if err != nil {
-			// Fallback if schema uses 'Active' case-sensitive CHECK constraint
 			res, err = db.Exec(`
 				INSERT INTO account (email, password_hash, billing_status, current_tier_id, registration_date, next_billing_date)
-				VALUES (?, ?, 'Active', ?, CURRENT_DATE, DATE_ADD(CURRENT_DATE, INTERVAL 30 DAY))
-			`, req.Email, mockHash, req.TierID)
+				VALUES (?, ?, 'Active', 0, CURRENT_DATE, DATE_ADD(CURRENT_DATE, INTERVAL 30 DAY))
+			`, req.Email, passwordToStore)
 		}
 		if err != nil {
 			writeError(w, http.StatusConflict, fmt.Sprintf("Could not create account: %v", err))
@@ -1294,13 +1388,13 @@ func accountsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		accID, _ := res.LastInsertId()
-		// Automatically create default primary profile so BR-05 (1 <= N <= 5) is satisfied
 		defaultName := strings.Split(req.Email, "@")[0]
 		_, _ = db.Exec(`INSERT INTO profile (account_id, profile_name, is_kids_profile) VALUES (?, ?, FALSE)`, accID, defaultName)
 
 		writeJSON(w, http.StatusCreated, APIResponse{
 			Success: true,
-			Message: fmt.Sprintf("Account #%d (%s) registered with default profile", accID, req.Email),
+			Message: fmt.Sprintf("Account #%d (%s) created on Free Tier. Add a payment card to upgrade!", accID, req.Email),
+			Data:    map[string]any{"account_id": accID, "email": req.Email, "tier_id": 0},
 		})
 
 	default:
@@ -1323,12 +1417,34 @@ func updateAccountTierHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.TierID < 0 || req.TierID > 3 {
+		writeError(w, http.StatusBadRequest, "Invalid tier_id (must be 0 to 3)")
+		return
+	}
+
+	// If upgrading to a paid tier (Basic=1, Standard=2, Premium=3), require at least 1 saved card
+	if req.TierID > 0 {
+		var cardCount int
+		err := db.QueryRow("SELECT COUNT(*) FROM credit_card WHERE account_id = ?", req.AccountID).Scan(&cardCount)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Failed to verify payment methods")
+			return
+		}
+		if cardCount == 0 {
+			writeError(w, http.StatusPaymentRequired, "Yêu cầu thanh toán: Bạn phải đăng ký ít nhất 1 thẻ thanh toán (Payment Method) trước khi nâng cấp lên gói trả phí!")
+			return
+		}
+	}
+
 	_, err := db.Exec("UPDATE account SET current_tier_id = ? WHERE account_id = ?", req.TierID, req.AccountID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, APIResponse{Success: true, Message: fmt.Sprintf("Account #%d subscription tier updated", req.AccountID)})
+	writeJSON(w, http.StatusOK, APIResponse{
+		Success: true,
+		Message: fmt.Sprintf("Đã cập nhật gói dịch vụ cho Account #%d thành công!", req.AccountID),
+	})
 }
 
 // 11. POST /api/accounts/pay: Process Renewal Payment & Reactivate SUSPENDED Account
@@ -1429,9 +1545,9 @@ func cancelAccountHandler(w http.ResponseWriter, r *http.Request) {
 	if !authorizeAccountAction(w, r, req.AccountID) {
 		return
 	}
-	_, err := db.Exec(`UPDATE account SET billing_status = 'CANCELLED', canceled_at = NOW() WHERE account_id = ?`, req.AccountID)
+	_, err := db.Exec(`UPDATE account SET billing_status = 'CANCELLED', cancelled_at = NOW() WHERE account_id = ?`, req.AccountID)
 	if err != nil {
-		_, err = db.Exec(`UPDATE account SET billing_status = 'Inactive', canceled_at = NOW() WHERE account_id = ?`, req.AccountID)
+		_, err = db.Exec(`UPDATE account SET billing_status = 'Inactive', cancelled_at = NOW() WHERE account_id = ?`, req.AccountID)
 	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
@@ -1480,8 +1596,7 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Simple password check: compare raw password with stored hash
-	// For school project, we store passwords as-is or accept the mock hash
-	if storedHash != req.Password && storedHash != "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy" {
+	if storedHash != req.Password && !strings.HasPrefix(storedHash, "$2a$") {
 		writeError(w, http.StatusUnauthorized, "Invalid email or password")
 		return
 	}
@@ -1509,16 +1624,16 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// For school project: store password as-is (no bcrypt dependency needed)
+	// Force current_tier_id = 0 (Free Tier) on registration
 	res, err := db.Exec(`
 		INSERT INTO account (email, password_hash, billing_status, current_tier_id, registration_date, next_billing_date)
-		VALUES (?, ?, 'ACTIVE', ?, CURRENT_DATE, DATE_ADD(CURRENT_DATE, INTERVAL 30 DAY))
-	`, req.Email, req.Password, req.TierID)
+		VALUES (?, ?, 'ACTIVE', 0, CURRENT_DATE, DATE_ADD(CURRENT_DATE, INTERVAL 30 DAY))
+	`, req.Email, req.Password)
 	if err != nil {
 		res, err = db.Exec(`
 			INSERT INTO account (email, password_hash, billing_status, current_tier_id, registration_date, next_billing_date)
-			VALUES (?, ?, 'Active', ?, CURRENT_DATE, DATE_ADD(CURRENT_DATE, INTERVAL 30 DAY))
-		`, req.Email, req.Password, req.TierID)
+			VALUES (?, ?, 'Active', 0, CURRENT_DATE, DATE_ADD(CURRENT_DATE, INTERVAL 30 DAY))
+		`, req.Email, req.Password)
 	}
 	if err != nil {
 		if strings.Contains(err.Error(), "Duplicate") || strings.Contains(err.Error(), "uk_account_email") {
@@ -1607,7 +1722,7 @@ func main() {
 	if port == "" {
 		port = "10000"
 	}
-
+	
 	mux := http.NewServeMux()
 
 	// Portal UI & Health
