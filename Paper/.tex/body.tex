@@ -391,7 +391,7 @@ BR-15 (Cancellation \& Data Retention): Canceling a subscription sets the billin
 
 A partial dependency can only exist if a key contains two or more attributes (a composite key). A single-column key cannot have a non-empty proper subset.
 
-Because of this rule, 10 of your 13 tables are in 2NF by definition:
+Because of this rule, 10 out of 13 tables are in 2NF by definition:
 
 \begin{itemize}
 \item
@@ -433,7 +433,7 @@ Because of this rule, 10 of your 13 tables are in 2NF by definition:
 \item
   \({\text{title\_id}} \not\to \text{added\_at}\) (A title is bookmarked by different profiles at different times)
 \item
-  \{profile\_\allowbreak{}id,title\_\allowbreak{}id\}added\_\allowbreak{}at (The timestamp records the exact event of \emph{this} profile saving \emph{this} title)
+    \({\text{profile\_id, title\_id}} \not\to \text{added\_at}\) (The timestamp records the exact event of this profile saving this title)
 \end{itemize}
 
 \begin{itemize}
@@ -526,7 +526,7 @@ When a relation has only one candidate key (which is chosen as the Primary Key) 
 \item
   TV\_\allowbreak{}Series: \(title\_\allowbreak{} id \rightarrow \{ total\_\allowbreak{} seasons\}\)
 \item
-  Streamable\_\allowbreak{}Media\_\allowbreak{}Unit: \(media\_\allowbreak{} unit\_\allowbreak{} id \rightarrow \{ duration\_\allowbreak{} seconds,video\_\allowbreak{} resolution,is\_\allowbreak{} demo\_\allowbreak{} or\_\allowbreak{} trailer,storage\_\allowbreak{} asset\_\allowbreak{} url\}\)
+  \textbf{Active\_Session:} \texttt{session\_id} $\rightarrow$ \{\texttt{account\_id}, \texttt{profile\_id}, \texttt{ip\_address}, \texttt{device\_fingerprint}, \texttt{started\_at}, \texttt{last\_heartbeat\_at}, \texttt{session\_status}\}
 \item
   Active\_\allowbreak{}Session:\\
   \[\begin{aligned} session_{i}d \rightarrow account_{i}d,profile_{i}d,\\ &ip_{a}ddress,device_{f}ingerprint,\\ &started_{a}t,last_{h}eartbeat_{a}t,session_{s}tatus \end{aligned}\]
