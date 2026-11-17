@@ -1,0 +1,88 @@
+% Compile with XeLaTeX on Overleaf.
+\documentclass[12pt,a4paper,oneside]{report}
+\usepackage[a4paper,top=25mm,bottom=25mm,left=28mm,right=22mm]{geometry}
+\usepackage{fontspec}
+\setmainfont{NotoSerif.ttf}[Path=fonts/,BoldFont=NotoSerif.ttf,BoldFeatures={FakeBold=2},ItalicFont=NotoSerif.ttf,ItalicFeatures={FakeSlant=.2},BoldItalicFont=NotoSerif.ttf,BoldItalicFeatures={FakeBold=2,FakeSlant=.2}]
+\newfontfamily\sansfont{NotoSans.ttf}[Path=fonts/,BoldFont=NotoSans.ttf,BoldFeatures={FakeBold=2}]
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usepackage{listings}
+\lstdefinestyle{reportsql}{language=SQL,basicstyle=\ttfamily\scriptsize,keywordstyle=\bfseries\color{blue!55!black},commentstyle=\itshape\color{green!35!black},stringstyle=\color{red!45!black},breaklines=true,breakatwhitespace=false,columns=fullflexible,keepspaces=true,showstringspaces=false,tabsize=2,frame=single,rulecolor=\color{blue!45!black},backgroundcolor=\color{blue!2},framesep=5pt,framexleftmargin=2pt,framexrightmargin=2pt,aboveskip=10pt,belowskip=10pt}
+\usepackage{longtable,booktabs,array,calc}
+\usepackage{etoolbox}
+\AtBeginEnvironment{longtable}{\fontsize{9}{11}\selectfont}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\setlist[itemize]{before=\raggedright}
+\providecommand{\ul}[1]{\underline{#1}}
+\setlength{\emergencystretch}{3em}
+\sloppy
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{5pt plus 1pt minus 1pt}
+\setlength{\LTpre}{7pt}
+\setlength{\LTpost}{7pt}
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.08}
+\newcounter{none}
+\makeatletter
+\patchcmd\longtable{\par}{\if@noskipsec\mbox{}\fi\par}{}{}
+\makeatother
+\newcommand{\tightlist}{\setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\hypersetup{hidelinks,pdftitle={Mini-Netflix On-Demand Streaming Platform},pdfauthor={Nhan Duy Tran; Lam Vo; Hung Minh To}}
+\pagestyle{plain}
+\usepackage{titlesec}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{colortbl} % Allows subtle gray lines between table rows
+
+% 1. Adds a clean horizontal line under every \section* (Sections 1, 2, 3, 4, 5)
+\titleformat{\section}
+  {\Large\bfseries}
+  {}
+  {0em}
+  {}
+  [\vspace{4pt}\titlerule]
+
+% 2. Increases vertical row height inside all tables by 40%
+\renewcommand{\arraystretch}{1.4}
+\begin{document}
+\begin{titlepage}
+\thispagestyle{empty}
+\begin{tikzpicture}[remember picture,overlay]
+  \draw[line width=.8pt] ([xshift=20mm,yshift=-17mm]current page.north west) rectangle ([xshift=-20mm,yshift=17mm]current page.south east);
+  \draw[line width=.35pt] ([xshift=21mm,yshift=-18mm]current page.north west) rectangle ([xshift=-21mm,yshift=18mm]current page.south east);
+\end{tikzpicture}
+\vspace*{10mm}
+\begin{center}
+{\fontsize{14}{19}\selectfont\bfseries POSTS AND TELECOMMUNICATIONS\\
+INSTITUTE OF TECHNOLOGY\\
+HO CHI MINH CITY CAMPUS\\
+FACULTY OF INFORMATION TECHNOLOGY 2\par}
+\vspace{2mm}
+{\bfseries ------------------\par}
+\vspace{2mm}
+\includegraphics[width=32mm,height=32mm]{assets/ptit-logo.png}
+\par
+\vspace{12mm}
+{\fontsize{22}{27}\selectfont\bfseries COURSE PROJECT REPORT\\ DATABASE SYSTEMS\par}
+\vspace{11mm}
+{\fontsize{15}{21}\selectfont\bfseries Mini-Netflix On-Demand Streaming Platform:\\Managing Complex Content Hierarchies and Tiered Membership Access through EER Modelling and Relational Normalization\par}
+\end{center}
+\vspace{16mm}
+\begin{minipage}{\textwidth}
+\centering\fontsize{12}{19}\selectfont\bfseries
+\begin{tabular}{@{}ll@{}}
+Student name & Student ID\\
+\hline
+Nhan Duy Tran & N25DECE106\\
+Lam Vo & N25DECE055\\
+Hung Minh To & N25DECE092
+\end{tabular}\par
+\vspace{5mm}
+Group: No Man's Land (NML)
+\end{minipage}
+\end{titlepage}
+\setcounter{page}{1}
+\input{body.tex}
+\end{document}

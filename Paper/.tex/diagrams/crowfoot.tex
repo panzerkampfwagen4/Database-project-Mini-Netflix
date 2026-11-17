@@ -1,0 +1,333 @@
+\documentclass[tikz, border=18pt]{standalone}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{array}
+\usetikzlibrary{calc, decorations.markings}
+
+\definecolor{bluehdr}{HTML}{DAE8FC}
+\definecolor{bluestroke}{HTML}{6C8EBF}
+\definecolor{graystroke}{HTML}{A6A6A6}
+
+% Helper macro for ER entity tables with a styled header and left-aligned attributes
+% #1 = node name, #2 = x, #3 = y, #4 = header fill, #5 = border color, #6 = width, #7 = title, #8 = attribute rows
+\newcommand{\ertable}[8]{%
+  \node[
+    rectangle,
+    draw=#5,
+    fill=white,
+    line width=0.9pt,
+    inner sep=0pt,
+    font=\sffamily\scriptsize,
+    align=left
+  ] (#1) at (#2, #3) {%
+    \begin{tabular}{@{}p{#6}@{}}
+      \multicolumn{1}{@{}>{\centering\arraybackslash\columncolor{#4}}p{#6}@{}}{\rule{0pt}{11pt}\textbf{#7}\rule[-4pt]{0pt}{4pt}} \\[-0.5pt]
+      \hline
+      #8
+    \end{tabular}%
+  };%
+}
+
+% Fallback if colortbl is not loaded: draw header background via TikZ node
+\renewcommand{\ertable}[8]{%
+  \node[
+    rectangle,
+    draw=#5,
+    fill=white,
+    line width=0.9pt,
+    inner sep=0pt,
+    font=\sffamily\scriptsize,
+    align=left
+  ] (#1) at (#2, #3) {%
+    \begin{tabular}{@{}p{#6}@{}}
+      \centering\textbf{#7}\rule{0pt}{11pt}\rule[-4pt]{0pt}{4pt} \tabularnewline
+      \hline
+      #8
+    \end{tabular}%
+  };
+  \begin{pgfonlayer}{background}
+    \fill[#4] (#1.north west) rectangle ($(#1.north east)+(0,-16.5pt)$);
+  \end{pgfonlayer}
+}
+
+\pgfdeclarelayer{background}
+\pgfsetlayers{background,main}
+
+% Row formatting helper
+\newcommand{\errow}[1]{\hspace{4pt}#1\rule{0pt}{10.5pt}\rule[-3.5pt]{0pt}{3.5pt}\tabularnewline}
+\newcommand{\key}[1]{\textbf{#1}}
+
+\begin{document}
+\begin{tikzpicture}[
+  font=\sffamily,
+  line cap=round,
+  line join=round,
+  % Crow's Foot End Markers (pos=0 points away from source; pos=1 points into target)
+  cf start one/.style={
+    decoration={
+      markings,
+      mark=at position 0 with {
+        \draw[black, line width=0.8pt] (4pt, -4pt) -- (4pt, 4pt);
+        \draw[black, line width=0.8pt] (7.5pt, -4pt) -- (7.5pt, 4pt);
+      }
+    },
+    postaction={decorate}
+  },
+  cf end one/.style={
+    decoration={
+      markings,
+      mark=at position 1 with {
+        \draw[black, line width=0.8pt] (-4pt, -4pt) -- (-4pt, 4pt);
+        \draw[black, line width=0.8pt] (-7.5pt, -4pt) -- (-7.5pt, 4pt);
+      }
+    },
+    postaction={decorate}
+  },
+  cf end one many/.style={
+    decoration={
+      markings,
+      mark=at position 1 with {
+        \draw[black, line width=0.8pt] (-8.5pt, -4pt) -- (-8.5pt, 4pt);
+        \draw[black, line width=0.8pt] (-7pt, 0pt) -- (0pt, 4.5pt);
+        \draw[black, line width=0.8pt] (-7pt, 0pt) -- (0pt, -4.5pt);
+      }
+    },
+    postaction={decorate}
+  },
+  cf end zero many/.style={
+    decoration={
+      markings,
+      mark=at position 1 with {
+        \draw[black, line width=0.8pt] (-6.5pt, 0pt) -- (0pt, 4.5pt);
+        \draw[black, line width=0.8pt] (-6.5pt, 0pt) -- (0pt, -4.5pt);
+        \filldraw[fill=white, draw=black, line width=0.8pt] (-10.5pt, 0pt) circle (2.5pt);
+      }
+    },
+    postaction={decorate}
+  },
+  cf end many/.style={
+    decoration={
+      markings,
+      mark=at position 1 with {
+        \draw[black, line width=0.8pt] (-7.5pt, 0pt) -- (0pt, 4.5pt);
+        \draw[black, line width=0.8pt] (-7.5pt, 0pt) -- (0pt, -4.5pt);
+      }
+    },
+    postaction={decorate}
+  },
+  er 1-1/.style={draw=black, line width=0.8pt, cf start one, cf end one},
+  er 1-M/.style={draw=black, line width=0.8pt, cf start one, cf end one many},
+  er 1-0M/.style={draw=black, line width=0.8pt, cf start one, cf end zero many},
+  er 1-many/.style={draw=black, line width=0.8pt, cf start one, cf end many}
+]
+
+% ==============================================================================
+% 1. ENTITY TABLES
+% ==============================================================================
+
+\ertable{credit_card}{6.72}{3.04}{bluehdr}{bluestroke}{5.4cm}{CREDIT\_CARD}{
+  \errow{\key{PK} card\_id}
+  \errow{\key{FK} account\_id}
+  \errow{\key{UK} payment\_token}
+  \errow{cardholder\_name}
+  \errow{card\_brand}
+  \errow{last\_four}
+  \errow{exp\_month}
+  \errow{exp\_year}
+  \errow{is\_default}
+  \errow{created\_at}
+}
+
+\ertable{payment_tx}{-2.08}{-0.56}{white}{black}{5.7cm}{PAYMENT\_TRANSACTION}{
+  \errow{\key{PK} transaction\_id}
+  \errow{\key{FK} account\_id}
+  \errow{\key{FK} card\_id}
+  \errow{\key{UK} gateway\_reference}
+  \errow{amount}
+  \errow{currency}
+  \errow{status}
+  \errow{transaction\_date}
+}
+
+\ertable{sub_tier}{6.40}{-4.42}{bluehdr}{bluestroke}{6.6cm}{SUBSCRIPTION\_TIER}{
+  \errow{\key{PK} tier\_id}
+  \errow{\key{UK} tier\_name}
+  \errow{monthly\_price}
+  \errow{max\_concurrent\_streams}
+  \errow{max\_video\_quality}
+}
+
+\ertable{account}{15.52}{-1.70}{bluehdr}{bluestroke}{7.6cm}{ACCOUNT}{
+  \errow{\key{PK} account\_id}
+  \errow{\key{UK} email}
+  \errow{\key{FK} current\_tier\_id}
+  \errow{\key{FK} pending\_tier\_id (Null)}
+  \errow{billing\_status}
+  \errow{pending\_tier\_effective\_date (Null)}
+  \errow{registration\_date}
+  \errow{next\_billing\_date}
+  \errow{canceled\_at (Null)}
+  \errow{password\_hash}
+}
+
+\ertable{profile}{26.88}{-1.70}{bluehdr}{bluestroke}{6.0cm}{PROFILE}{
+  \errow{\key{PK} profile\_id}
+  \errow{\key{FK} account\_id}
+  \errow{\key{UK} profile\_name}
+  \errow{is\_kids\_profile}
+}
+
+\ertable{active_session}{40.00}{-1.70}{white}{graystroke}{6.6cm}{ACTIVE\_SESSION}{
+  \errow{\key{PK} session\_id}
+  \errow{\key{FK} account\_id}
+  \errow{\key{FK} profile\_id}
+  \errow{ip\_address}
+  \errow{device\_fingerprint}
+  \errow{started\_at}
+  \errow{last\_heartbeat\_at}
+  \errow{session\_status}
+}
+
+\ertable{catalog_title}{3.84}{-11.81}{bluehdr}{bluestroke}{6.6cm}{CATALOG\_TITLE}{
+  \errow{\key{PK} title\_id}
+  \errow{\key{FK} minimum\_tier\_id}
+  \errow{title\_name}
+  \errow{maturity\_rating}
+  \errow{content\_type}
+  \errow{synopsis}
+}
+
+\ertable{watchlist}{15.04}{-9.34}{white}{graystroke}{6.0cm}{WATCHLIST}{
+  \errow{\key{PK, FK} profile\_id}
+  \errow{\key{PK, FK} title\_id}
+  \errow{added\_at}
+}
+
+\ertable{title_rating}{15.04}{-14.24}{white}{graystroke}{6.0cm}{TITLE\_RATING}{
+  \errow{\key{PK, FK} profile\_id}
+  \errow{\key{PK, FK} title\_id}
+  \errow{score}
+  \errow{rated\_at}
+}
+
+\ertable{movie_title}{0.32}{-20.51}{bluehdr}{bluestroke}{6.0cm}{MOVIE\_TITLE}{
+  \errow{\key{PK, FK} title\_id}
+  \errow{\key{UK, FK} media\_unit\_id}
+}
+
+\ertable{tv_series}{7.68}{-20.51}{bluehdr}{bluestroke}{5.4cm}{TV\_SERIES}{
+  \errow{\key{PK, FK} title\_id}
+  \errow{total\_seasons}
+}
+
+\ertable{season}{21.76}{-19.68}{white}{graystroke}{5.4cm}{SEASON}{
+  \errow{\key{PK} season\_id}
+  \errow{\key{FK} series\_id}
+  \errow{\key{UK} season\_number}
+  \errow{release\_year}
+}
+
+\ertable{episode}{30.40}{-19.68}{white}{graystroke}{6.6cm}{EPISODE}{
+  \errow{\key{PK} episode\_id}
+  \errow{\key{FK} season\_id}
+  \errow{\key{UK, FK} media\_unit\_id}
+  \errow{episode\_number}
+  \errow{episode\_title}
+}
+
+\ertable{media_unit}{10.24}{-29.70}{white}{graystroke}{7.2cm}{STREAMABLE\_MEDIA\_UNIT}{
+  \errow{\key{PK} media\_unit\_id}
+  \errow{duration\_seconds}
+  \errow{video\_resolution}
+  \errow{is\_demo\_or\_trailer}
+  \errow{storage\_asset\_url}
+}
+
+\ertable{watch_history}{33.28}{-29.70}{white}{graystroke}{6.6cm}{WATCH\_HISTORY}{
+  \errow{\key{PK, FK} profile\_id}
+  \errow{\key{PK, FK} media\_unit\_id}
+  \errow{\key{PK} watched\_at}
+  \errow{playback\_stop\_seconds}
+  \errow{is\_completed}
+}
+
+% ==============================================================================
+% 2. CROW'S FOOT RELATIONSHIPS
+% ==============================================================================
+
+% CREDIT_CARD (1) -- (<) PAYMENT_TRANSACTION
+\coordinate (cc_left) at ($(credit_card.north west)!0.58!(credit_card.south west)$);
+\coordinate (tx_right) at (payment_tx.east);
+\draw[er 1-many] (cc_left) -- ($ (cc_left)!0.5!(tx_right |- cc_left) $) |- (tx_right);
+
+% CREDIT_CARD (1) -- (|<) ACCOUNT
+\coordinate (cc_right) at ($(credit_card.north east)!0.55!(credit_card.south east)$);
+\coordinate (acc_top_left) at ($(account.north west)!0.23!(account.south west)$);
+\draw[er 1-M] (cc_right) -- ($ (cc_right)!0.5!(acc_top_left |- cc_right) $) |- (acc_top_left);
+
+% SUBSCRIPTION_TIER (1) -- (|<) ACCOUNT
+\coordinate (st_right) at (sub_tier.east);
+\coordinate (acc_mid_left) at ($(account.north west)!0.63!(account.south west)$);
+\draw[er 1-M] (st_right) -- ($ (st_right)!0.5!(acc_mid_left |- st_right) $) |- (acc_mid_left);
+
+% SUBSCRIPTION_TIER (1) -- (|<) CATALOG_TITLE
+\coordinate (st_bot) at ($(sub_tier.south west)!0.25!(sub_tier.south east)$);
+\coordinate (ct_top) at ($(catalog_title.north west)!0.25!(catalog_title.north east)$);
+\draw[er 1-M] (st_bot) -- ($ (st_bot)!0.5!(st_bot |- ct_top) $) -| (ct_top);
+
+% ACCOUNT (1) -- (|<) PROFILE
+\draw[er 1-M] (account.east) -- (profile.west);
+
+% PROFILE (1) -- (o<) ACTIVE_SESSION
+\draw[er 1-0M] (profile.east) -- (active_session.west);
+
+% PROFILE (1) -- (o<) WATCHLIST
+\coordinate (prof_bot_l) at ($(profile.south west)!0.25!(profile.south east)$);
+\coordinate (wl_right) at ($(watchlist.north east)!0.25!(watchlist.south east)$);
+\draw[er 1-0M] (prof_bot_l) |- (wl_right);
+
+% CATALOG_TITLE (1) -- (o<) WATCHLIST
+\coordinate (ct_right_t) at ($(catalog_title.north east)!0.25!(catalog_title.south east)$);
+\draw[er 1-0M] (ct_right_t) -- ($ (ct_right_t)!0.5!(watchlist.west |- ct_right_t) $) |- (watchlist.west);
+
+% PROFILE (1) -- (o<) TITLE_RATING
+\coordinate (prof_bot_r) at ($(profile.south west)!0.75!(profile.south east)$);
+\draw[er 1-0M] (prof_bot_r) |- (title_rating.east);
+
+% CATALOG_TITLE (1) -- (o<) TITLE_RATING
+\coordinate (ct_right_b) at ($(catalog_title.north east)!0.75!(catalog_title.south east)$);
+\draw[er 1-0M] (ct_right_b) -- ($ (ct_right_b)!0.5!(title_rating.west |- ct_right_b) $) |- (title_rating.west);
+
+% CATALOG_TITLE (1) -- (||) MOVIE_TITLE
+\coordinate (ct_bot_l) at ($(catalog_title.south west)!0.25!(catalog_title.south east)$);
+\draw[er 1-1] (ct_bot_l) -- ($ (ct_bot_l)!0.5!(ct_bot_l |- movie_title.north) $) -| (movie_title.north);
+
+% CATALOG_TITLE (1) -- (||) TV_SERIES
+\coordinate (ct_bot_r) at ($(catalog_title.south west)!0.75!(catalog_title.south east)$);
+\draw[er 1-1] (ct_bot_r) -- ($ (ct_bot_r)!0.5!(ct_bot_r |- tv_series.north) $) -| (tv_series.north);
+
+% TV_SERIES (1) -- (|<) SEASON
+\draw[er 1-M] (tv_series.east) -- ($ (tv_series.east)!0.5!(season.west |- tv_series.east) $) |- (season.west);
+
+% SEASON (1) -- (|<) EPISODE
+\draw[er 1-M] (season.east) -- (episode.west);
+
+% STREAMABLE_MEDIA_UNIT (1) -- (||) MOVIE_TITLE
+\coordinate (mu_top_l) at ($(media_unit.north west)!0.25!(media_unit.north east)$);
+\draw[er 1-1] (mu_top_l) -- ($ (mu_top_l)!0.5!(mu_top_l |- movie_title.south) $) -| (movie_title.south);
+
+% STREAMABLE_MEDIA_UNIT (1) -- (||) EPISODE
+\coordinate (mu_top_r) at ($(media_unit.north west)!0.75!(media_unit.north east)$);
+\draw[er 1-1] (mu_top_r) -- ($ (mu_top_r)!0.5!(mu_top_r |- episode.south) $) -| (episode.south);
+
+% STREAMABLE_MEDIA_UNIT (1) -- (o<) WATCH_HISTORY
+\draw[er 1-0M] (media_unit.east) -- (watch_history.west);
+
+% PROFILE (1) -- (o<) WATCH_HISTORY
+\coordinate (prof_right_b) at ($(profile.north east)!0.75!(profile.south east)$);
+\coordinate (wh_top_r) at ($(watch_history.north west)!0.75!(watch_history.north east)$);
+\draw[er 1-0M] (prof_right_b) -| (wh_top_r);
+
+\end{tikzpicture}
+\end{document}
