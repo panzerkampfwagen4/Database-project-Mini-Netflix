@@ -1,0 +1,357 @@
+\documentclass[tikz, border=16pt]{standalone}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usetikzlibrary{shapes.geometric, positioning, calc}
+
+\definecolor{subfill}{HTML}{DAE8FC}
+\definecolor{substroke}{HTML}{6C8EBF}
+
+\begin{document}
+\begin{tikzpicture}[
+    font=\sffamily,
+    >=stealth,
+    entity/.style={
+        rectangle,
+        draw=black,
+        fill=white,
+        line width=1.1pt,
+        minimum height=0.95cm,
+        inner xsep=8pt,
+        inner ysep=5pt,
+        font=\sffamily\bfseries\footnotesize,
+        align=center
+    },
+    subentity/.style={
+        entity,
+        draw=substroke,
+        fill=subfill
+    },
+    weakentity/.style={
+        entity,
+        double,
+        double distance=2pt,
+        line width=0.9pt
+    },
+    rel/.style={
+        diamond,
+        aspect=2.2,
+        draw=black,
+        fill=white,
+        line width=0.9pt,
+        inner sep=1.5pt,
+        font=\sffamily\scriptsize,
+        align=center
+    },
+    attr/.style={
+        ellipse,
+        draw=black,
+        fill=white,
+        line width=0.7pt,
+        inner xsep=3.5pt,
+        inner ysep=2pt,
+        font=\sffamily\scriptsize,
+        align=center
+    },
+    derivedattr/.style={
+        attr,
+        dashed
+    },
+    spec/.style={
+        circle,
+        draw=black,
+        fill=white,
+        line width=0.9pt,
+        inner sep=2.2pt,
+        font=\sffamily\bfseries\small
+    },
+    conn/.style={
+        draw=black,
+        line width=0.75pt
+    },
+    doubleconn/.style={
+        draw=black,
+        double,
+        double distance=1.8pt,
+        line width=0.75pt
+    },
+    card/.style={
+        font=\sffamily\scriptsize,
+        fill=white,
+        inner sep=1.5pt
+    }
+]
+
+% ==============================================================================
+% 1. ENTITIES
+% ==============================================================================
+\node[entity, minimum width=3.6cm] (sub_tier)       at ( 2.28, -10.61) {SUBSCRIPTION TIER};
+\node[entity, minimum width=3.0cm] (account)        at (11.76,  -4.55) {ACCOUNT};
+\node[entity, minimum width=2.5cm] (profile)        at (21.48,  -4.62) {PROFILE};
+\node[entity, minimum width=3.2cm] (active_session) at (30.24,  -4.62) {ACTIVE\_SESSION};
+\node[entity, minimum width=3.0cm] (catalog_title)  at (10.92, -10.62) {CATALOG TITLE};
+\node[subentity, minimum width=2.5cm] (tv_series)   at ( 9.00, -14.40) {TV\_SERIES};
+\node[subentity, minimum width=2.5cm] (movie_title) at (12.84, -14.40) {MOVIE\_TITLE};
+\node[entity, minimum width=2.3cm] (season)         at ( 9.00, -18.00) {SEASON};
+\node[entity, minimum width=2.3cm] (episode)        at ( 9.00, -21.60) {EPISODE};
+\node[entity, minimum width=4.1cm] (media_unit)     at (13.20, -24.30) {STREAMABLE\_MEDIA\_UNIT};
+\node[weakentity, minimum width=3.0cm] (watch_hist) at (21.00, -13.26) {WATCH\_HISTORY};
+\node[entity, minimum width=2.3cm] (cards)          at ( 0.00,  -3.66) {CARDS};
+\node[entity, minimum width=4.1cm] (payment_tx)     at (-0.24,  -7.44) {PAYMENT\_TRANSACTION};
+
+% Specialization Circle & Constraint Label
+\node[spec] (disjoint_d) at (10.92, -12.36) {d};
+\node[font=\sffamily\scriptsize, anchor=west] at (11.40, -12.36) {\{disjoint, complete\}};
+
+% ==============================================================================
+% 2. RELATIONSHIPS
+% ==============================================================================
+\node[rel] (rel_current_tier)  at ( 7.80,  -5.34) {CURRENT\_TIER};
+\node[rel] (rel_pending_tier)  at ( 7.80,  -6.72) {PENDING\_TIER};
+\node[rel] (rel_has_profiles)  at (17.76,  -4.62) {HAS\_PROFILES};
+\node[rel] (rel_has_session)   at (25.44,  -4.62) {HAS\_SESSION};
+\node[rel] (rel_requires_tier) at ( 6.84, -10.62) {REQUIRES\_TIER};
+\node[rel] (rel_watchlist)     at (15.54,  -7.62) {WATCHLIST};
+\node[rel] (rel_title_rating)  at (18.30,  -8.70) {TITLE\_RATING};
+\node[rel] (rel_has_seasons)   at ( 9.00, -16.14) {HAS\_SEASONS};
+\node[rel] (rel_has_episodes)  at ( 9.00, -19.74) {HAS\_EPISODES};
+\node[rel] (rel_episode_media) at ( 8.94, -23.82) {EPISODE\_MEDIA};
+\node[rel] (rel_movie_media)   at (12.84, -16.38) {MOVIE\_MEDIA};
+\node[rel] (rel_owns)          at ( 4.92,  -2.94) {OWNS};
+\node[rel] (rel_makes)         at ( 4.86,  -4.38) {MAKES};
+\node[rel] (rel_used_for)      at ( 0.00,  -5.52) {USED\_FOR};
+
+% ==============================================================================
+% 3. ATTRIBUTES
+% ==============================================================================
+
+% --- SUBSCRIPTION TIER ---
+\node[attr] (st_id)       at (-1.02, -11.52) {\underline{tier\_id}};
+\node[attr] (st_name)     at (-1.02, -10.44) {tier\_name};
+\node[attr] (st_price)    at ( 4.86, -11.71) {month\_price};
+\node[attr] (st_streams)  at ( 1.74, -11.81) {max\_concurrent\_streams};
+\node[attr] (st_quality)  at ( 4.14, -12.60) {max\_video\_quality};
+
+% --- REQUIRES_TIER ---
+\node[attr] (rt_min_id)   at ( 6.54,  -9.35) {minimum\_tier\_id};
+
+% --- ACCOUNT ---
+\node[attr] (acc_id)      at (11.16,  -2.57) {\underline{account\_id}};
+\node[attr] (acc_email)   at (13.43,  -2.76) {email};
+\node[attr] (acc_reg)     at (15.54,  -2.40) {registration\_date};
+\node[attr] (acc_bill)    at (15.72,  -3.48) {billing\_status};
+\node[attr] (acc_cur_t)   at ( 8.46,  -2.76) {current\_tier\_id};
+\node[attr] (acc_pen_t)   at ( 9.06,  -1.49) {pending\_tier\_id};
+\node[attr] (acc_pen_dt)  at (11.94,  -1.66) {pending\_tier\_effective\_date};
+\node[attr] (acc_pass)    at (12.78,  -6.60) {password\_hash};
+\node[attr] (acc_cancel)  at (14.10,  -5.66) {canceled\_at (NULLABLE)};
+\node[attr] (acc_next_b)  at (10.98,  -5.88) {next\_billing\_date};
+
+% --- PROFILE ---
+\node[attr] (prof_id)     at (19.62,  -2.52) {\underline{profile\_id}};
+\node[attr] (prof_name)   at (21.12,  -1.80) {profile\_name};
+\node[attr] (prof_dob)    at (22.92,  -2.28) {date\_of\_birth};
+\node[derivedattr] (prof_age) at (24.24, -3.12) {age};
+
+% --- ACTIVE_SESSION ---
+\node[attr] (ses_id)      at (28.38,  -2.16) {\underline{session\_id}};
+\node[attr] (ses_ip)      at (30.42,  -2.16) {ip\_address};
+\node[attr] (ses_status)  at (32.10,  -3.12) {session\_status};
+\node[attr] (ses_fp)      at (33.54,  -4.62) {device\_fingerprint};
+\node[attr] (ses_srv)     at (30.78,  -6.12) {server\_id};
+\node[attr] (ses_hb)      at (28.50,  -6.24) {last\_heartbeat\_at};
+
+% --- WATCHLIST & TITLE_RATING ---
+\node[attr] (wl_added)    at (13.20,  -7.62) {added\_at};
+\node[attr] (tr_score)    at (19.08,  -7.44) {score};
+\node[attr] (tr_rated)    at (18.72,  -9.96) {rated\_at};
+
+% --- CATALOG TITLE ---
+\node[attr] (ct_id)       at (14.34, -10.62) {\underline{title\_id}};
+\node[attr] (ct_name)     at (11.70,  -9.18) {title\_name};
+\node[attr] (ct_syn)      at (10.20,  -8.52) {synopsis};
+\node[attr] (ct_type)     at ( 9.12,  -9.38) {content\_type};
+\node[attr] (ct_mat)      at (13.86, -11.76) {maturity\_rating};
+\node[attr] (ct_items)    at ( 9.30, -11.88) {total\_items};
+
+% --- SEASON ---
+\node[attr] (sea_id)      at ( 6.18, -17.59) {\underline{season\_id}};
+\node[attr] (sea_tot)     at ( 6.24, -16.56) {total\_episodes};
+\node[attr] (sea_num)     at ( 6.18, -18.72) {season\_number};
+\node[attr] (sea_yr)      at ( 6.30, -19.92) {release\_year};
+
+% --- EPISODE ---
+\node[attr] (ep_id)       at ( 6.54, -21.36) {\underline{episode\_id}};
+\node[attr] (ep_title)    at ( 6.60, -22.44) {episode\_title};
+
+% --- STREAMABLE_MEDIA_UNIT ---
+\node[attr] (mu_id)       at (10.26, -25.68) {\underline{media\_unit\_id}};
+\node[attr] (mu_res)      at (12.84, -25.92) {video\_resolution};
+\node[attr] (mu_url)      at (16.38, -25.44) {storage\_asset\_url};
+\node[attr] (mu_trailer)  at (14.82, -26.64) {is\_trailer\_or\_teaser};
+\node[attr] (mu_dur)      at (11.10, -27.00) {duration\_seconds};
+
+% --- WATCH_HISTORY ---
+\node[attr] (wh_stop)     at (24.12, -14.52) {playback\_stop\_seconds};
+\node[attr] (wh_comp)     at (24.48, -12.36) {is\_completed};
+\node[attr] (wh_upd)      at (24.66, -13.44) {updated\_at};
+
+% --- CARDS ---
+\node[attr] (crd_id)      at (-0.48,  -2.33) {\underline{card\_id}};
+\node[attr] (crd_acc)     at ( 2.16,  -2.33) {account\_id};
+\node[attr] (crd_name)    at (-2.88,  -1.75) {cardholder\_name};
+\node[attr] (crd_exp)     at (-3.12,  -2.94) {expiration\_date};
+\node[attr] (crd_def)     at (-3.12,  -4.08) {is\_default};
+
+% --- PAYMENT_TRANSACTION ---
+\node[attr] (tx_id)       at (-2.40,  -6.00) {transaction\_id};
+\node[attr] (tx_acc)      at (-4.80,  -6.48) {account\_id};
+\node[attr] (tx_crd)      at (-4.80,  -7.68) {card\_id};
+\node[attr] (tx_amt)      at (-3.60,  -8.88) {amount};
+\node[attr] (tx_stat)     at (-1.02,  -8.88) {status};
+\node[attr] (tx_date)     at ( 1.56,  -8.88) {transaction\_date};
+
+% ==============================================================================
+% 4. ATTRIBUTE CONNECTIONS
+% ==============================================================================
+\draw[conn] (st_id)      -- (sub_tier.south west);
+\draw[conn] (st_name)    -- (sub_tier.west);
+\draw[conn] (st_price)   -- ($(sub_tier.south east)!0.25!(sub_tier.south)$);
+\draw[conn] (st_streams) -- (sub_tier.south);
+\draw[conn] (st_quality) -- ($(sub_tier.south east)!0.33!(sub_tier.south)$);
+
+\draw[conn] (rt_min_id)  -- (rel_requires_tier.north);
+
+\draw[conn] (acc_id)     -- ($(account.north west)!0.30!(account.north east)$);
+\draw[conn] (acc_email)  -- ($(account.north west)!0.65!(account.north east)$);
+\draw[conn] (acc_reg)    -- ($(account.north west)!0.85!(account.north east)$);
+\draw[conn] (acc_bill)   -- ($(account.north east)!0.20!(account.south east)$);
+\draw[conn] (acc_cur_t)  -- ($(account.north west)!0.15!(account.north east)$);
+\draw[conn] (acc_pen_t)  -- ($(account.north west)!0.10!(account.north east)$);
+\draw[conn] (acc_pen_dt) -- ($(account.north west)!0.45!(account.north east)$);
+\draw[conn] (acc_next_b) -- ($(account.south west)!0.20!(account.south east)$);
+\draw[conn] (acc_pass)   -- ($(account.south west)!0.45!(account.south east)$);
+\draw[conn] (acc_cancel) -- ($(account.south west)!0.75!(account.south east)$);
+
+\draw[conn] (prof_id)    -- ($(profile.north west)!0.15!(profile.north east)$);
+\draw[conn] (prof_name)  -- (profile.north);
+\draw[conn] (prof_dob)   -- ($(profile.north west)!0.80!(profile.north east)$);
+\draw[conn] (prof_age)   -- ($(profile.north east)!0.20!(profile.south east)$);
+
+\draw[conn] (ses_id)     -- ($(active_session.north west)!0.20!(active_session.north east)$);
+\draw[conn] (ses_ip)     -- ($(active_session.north west)!0.65!(active_session.north east)$);
+\draw[conn] (ses_status) -- ($(active_session.north west)!0.90!(active_session.north east)$);
+\draw[conn] (ses_fp)     -- (active_session.east);
+\draw[conn] (ses_srv)    -- ($(active_session.south west)!0.75!(active_session.south east)$);
+\draw[conn] (ses_hb)     -- ($(active_session.south west)!0.35!(active_session.south east)$);
+
+\draw[conn] (wl_added)   -- (rel_watchlist.west);
+\draw[conn] (tr_score)   -- (rel_title_rating.north);
+\draw[conn] (tr_rated)   -- ($(rel_title_rating.east)!0.5!(rel_title_rating.south)$);
+
+\draw[conn] (ct_id)      -- (catalog_title.east);
+\draw[conn] (ct_name)    -- ($(catalog_title.north west)!0.80!(catalog_title.north east)$);
+\draw[conn] (ct_syn)     -- ($(catalog_title.north west)!0.36!(catalog_title.north east)$);
+\draw[conn] (ct_type)    -- ($(catalog_title.north west)!0.17!(catalog_title.north east)$);
+\draw[conn] (ct_mat)     -- ($(catalog_title.south west)!0.65!(catalog_title.south east)$);
+\draw[conn] (ct_items)   -- ($(catalog_title.south west)!0.25!(catalog_title.south east)$);
+
+\draw[conn] (sea_id)     -- ($(season.north west)!0.30!(season.south west)$);
+\draw[conn] (sea_tot)    -- ($(season.north west)!0.10!(season.south west)$);
+\draw[conn] (sea_num)    -- ($(season.north west)!0.75!(season.south west)$);
+\draw[conn] (sea_yr)     -- ($(season.north west)!0.90!(season.south west)$);
+
+\draw[conn] (ep_id)      -- ($(episode.north west)!0.30!(episode.south west)$);
+\draw[conn] (ep_title)   -- ($(episode.north west)!0.75!(episode.south west)$);
+
+\draw[conn] (mu_id)      -- ($(media_unit.south west)!0.10!(media_unit.south east)$);
+\draw[conn] (mu_dur)     -- ($(media_unit.south west)!0.20!(media_unit.south east)$);
+\draw[conn] (mu_res)     -- ($(media_unit.south west)!0.35!(media_unit.south east)$);
+\draw[conn] (mu_trailer) -- ($(media_unit.south west)!0.60!(media_unit.south east)$);
+\draw[conn] (mu_url)     -- ($(media_unit.south west)!0.85!(media_unit.south east)$);
+
+\draw[conn] (wh_stop)    -- ($(watch_hist.south west)!0.75!(watch_hist.south east)$);
+\draw[conn] (wh_comp)    -- ($(watch_hist.north east)!0.25!(watch_hist.south east)$);
+\draw[conn] (wh_upd)     -- ($(watch_hist.north east)!0.70!(watch_hist.south east)$);
+
+\draw[conn] (crd_id)     -- (cards.north);
+\draw[conn] (crd_acc)    -- ($(cards.north west)!0.75!(cards.north east)$);
+\draw[conn] (crd_name)   -- (cards.north west);
+\draw[conn] (crd_exp)    -- (cards.west);
+\draw[conn] (crd_def)    -- ($(cards.north west)!0.75!(cards.south west)$);
+
+\draw[conn] (tx_id)      -- ($(payment_tx.north west)!0.10!(payment_tx.north east)$);
+\draw[conn] (tx_acc)     -- (payment_tx.west);
+\draw[conn] (tx_crd)     -- ($(payment_tx.north west)!0.75!(payment_tx.south west)$);
+\draw[conn] (tx_amt)     -- ($(payment_tx.south west)!0.25!(payment_tx.south east)$);
+\draw[conn] (tx_stat)    -- (payment_tx.south);
+\draw[conn] (tx_date)    -- ($(payment_tx.south west)!0.75!(payment_tx.south east)$);
+
+% ==============================================================================
+% 5. RELATIONSHIP CONNECTIONS & CARDINALITIES
+% ==============================================================================
+% SUBSCRIPTION TIER -- CURRENT_TIER -- ACCOUNT
+\draw[conn] (sub_tier.north) -- node[card, pos=0.45] {1} (rel_current_tier.west);
+\draw[conn] (rel_current_tier.east) -- node[card, pos=0.50] {N} (account.west);
+
+% SUBSCRIPTION TIER -- PENDING_TIER -- ACCOUNT
+\draw[conn] ($(sub_tier.north west)!0.75!(sub_tier.north east)$) -- node[card, pos=0.45] {1} (rel_pending_tier.west);
+\draw[conn] (rel_pending_tier.east) -- node[card, pos=0.50] {N} ($(account.north west)!0.75!(account.south west)$);
+
+% SUBSCRIPTION TIER -- REQUIRES_TIER -- CATALOG TITLE
+\draw[conn] (sub_tier.east) -- node[card, pos=0.50] {1} (rel_requires_tier.west);
+\draw[conn] (rel_requires_tier.east) -- node[card, pos=0.50] {M} (catalog_title.west);
+
+% ACCOUNT -- HAS_PROFILES -- PROFILE
+\draw[conn] (account.east) -- node[card, pos=0.50] {(1, 1)} (rel_has_profiles.west);
+\draw[conn] (rel_has_profiles.east) -- node[card, pos=0.50] {(1, 5)} (profile.west);
+
+% PROFILE -- HAS_SESSION -- ACTIVE_SESSION
+\draw[conn] (profile.east) -- node[card, pos=0.50] {1} (rel_has_session.west);
+\draw[conn] (rel_has_session.east) -- node[card, pos=0.50] {N} (active_session.west);
+
+% PROFILE -- WATCHLIST -- CATALOG TITLE
+\draw[conn] ($(profile.south west)!0.25!(profile.south east)$) -- node[card, pos=0.50] {N} (rel_watchlist.north);
+\draw[conn] (rel_watchlist.south) -- node[card, pos=0.50] {M} ($(catalog_title.north west)!0.85!(catalog_title.north east)$);
+
+% PROFILE -- TITLE_RATING -- CATALOG TITLE
+\draw[conn] (profile.south) -- node[card, pos=0.50] {N} (rel_title_rating.east);
+\draw[conn] (rel_title_rating.west) -- node[card, pos=0.50] {M} ($(catalog_title.north east)!0.25!(catalog_title.south east)$);
+
+% CATALOG TITLE -- d -- TV_SERIES & MOVIE_TITLE
+\draw[conn] (catalog_title.south) -- (disjoint_d.north);
+\draw[conn] (disjoint_d.south west) -- (tv_series.north);
+\draw[conn] (disjoint_d.south east) -- (movie_title.north);
+
+% TV_SERIES -- HAS_SEASONS -- SEASON -- HAS_EPISODES -- EPISODE -- EPISODE_MEDIA -- STREAMABLE_MEDIA_UNIT
+\draw[conn] (tv_series.south) -- node[card, pos=0.50] {1} (rel_has_seasons.north);
+\draw[conn] (rel_has_seasons.south) -- node[card, pos=0.50] {N} (season.north);
+
+\draw[conn] (season.south) -- node[card, pos=0.50] {1} (rel_has_episodes.north);
+\draw[conn] (rel_has_episodes.south) -- node[card, pos=0.50] {N} (episode.north);
+
+\draw[conn] (episode.south) -- node[card, pos=0.50] {1} (rel_episode_media.north);
+\draw[conn] (rel_episode_media.east) -- node[card, pos=0.50] {1} (media_unit.west);
+
+% MOVIE_TITLE -- MOVIE_MEDIA -- STREAMABLE_MEDIA_UNIT
+\draw[conn] (movie_title.south) -- node[card, pos=0.50] {1} (rel_movie_media.north);
+\draw[conn] (rel_movie_media.south) -- node[card, pos=0.50] {1} ($(media_unit.north west)!0.35!(media_unit.north east)$);
+
+% PROFILE == WATCH_HISTORY == STREAMABLE_MEDIA_UNIT (Double Lines)
+\draw[doubleconn] ($(profile.south west)!0.75!(profile.south east)$) -- node[card, pos=0.50] {M} (watch_hist.north);
+\draw[doubleconn] (watch_hist.south) -- node[card, pos=0.50] {N} (media_unit.north east);
+
+% CARDS -- OWNS -- ACCOUNT
+\draw[conn] (cards.east) -- node[card, pos=0.42] {N} (rel_owns.west);
+\draw[conn] (rel_owns.east) -- node[card, pos=0.38] {1} ($(account.north west)!0.25!(account.south west)$);
+
+% ACCOUNT -- MAKES -- PAYMENT_TRANSACTION
+\draw[conn] (account.west) -- node[card, pos=0.42] {1} (rel_makes.east);
+\draw[conn] (rel_makes.west) -- node[card, pos=0.42] {N} (payment_tx.north east);
+
+% CARDS -- USED_FOR -- PAYMENT_TRANSACTION
+\draw[conn] (cards.south) -- node[card, pos=0.40] {1} (rel_used_for.north);
+\draw[conn] (rel_used_for.south) -- node[card, pos=0.45] {N} ($(payment_tx.north west)!0.55!(payment_tx.north east)$);
+
+\end{tikzpicture}
+\end{document}
